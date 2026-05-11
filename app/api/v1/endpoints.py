@@ -21,8 +21,10 @@ def get_template_metadata():
 
 @router.post("/generate-ppt")
 def generate_ppt(request: GeneratePresentationRequest):
+    template_name = f"{request.template_name}.pptx"
+    print(f"Received request to generate presentation using template: {template_name}")
     templates_dir = Path("templates").resolve()
-    template_path = (templates_dir / request.template_name).resolve()
+    template_path = (templates_dir / template_name).resolve()
 
     try:
         template_path.relative_to(templates_dir)
@@ -35,7 +37,7 @@ def generate_ppt(request: GeneratePresentationRequest):
     if not template_path.is_file():
         raise HTTPException(
             status_code=404,
-            detail=f"Template '{request.template_name}' not found"
+            detail=f"Template '{template_name}' not found"
         )
 
     dummy_ai_response = {

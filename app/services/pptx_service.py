@@ -1,23 +1,39 @@
 from pptx import Presentation
+import re
 
 # metadata extraction and presentation generation logic will be use by an ai agent to create pptx files based on user input and a template file. The pptx template will have placeholders like {{title}}, {{summary}}, etc. which will be replaced by the ai agent with actual content before generating the final presentation.
 def extract_ppt_metadata(template_path: str):
+
     presentation = Presentation(template_path)
 
     slides_data = []
 
+    pattern = r"\{\{(.*?)\}\}"
+
     for slide_index, slide in enumerate(presentation.slides):
+
         slide_info = {
             "slide_number": slide_index + 1,
-            "shapes": []
+            "placeholders": []
         }
 
         for shape_index, shape in enumerate(slide.shapes):
 
-            if hasattr(shape, "text"):
-                slide_info["shapes"].append({
+            if not hasattr(shape, "text"):
+                continue
+
+            text = shape.text.strip()
+
+            if not text:
+                continue
+
+            matches = re.findall(pattern, text)
+
+            for match in matches:
+
+                slide_info["placeholders"].append({
                     "shape_index": shape_index,
-                    "text": shape.text
+                    "placeholder": match
                 })
 
         slides_data.append(slide_info)
