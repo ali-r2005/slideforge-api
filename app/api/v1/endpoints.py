@@ -1,7 +1,9 @@
-from fastapi import APIRouter
-from app.services.pptx_service import extract_ppt_metadata
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+from app.services.pptx_service import extract_ppt_metadata, generate_presentation
 from fastapi.responses import FileResponse
-from app.services.pptx_service import generate_presentation
+from app.schemas.generate_schema import GeneratePresentationRequest
 
 router = APIRouter()
 
@@ -18,7 +20,23 @@ def get_template_metadata():
     }
 
 @router.post("/generate-ppt")
-def generate_ppt():
+def generate_ppt(request: GeneratePresentationRequest):
+    templates_dir = Path("templates").resolve()
+    template_path = (templates_dir / request.template_name).resolve()
+
+    try:
+        template_path.relative_to(templates_dir)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid template name"
+        )
+
+    if not template_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Template '{request.template_name}' not found"
+        )
 
     dummy_ai_response = {
         "title": "AI Presentation Generator",
@@ -30,7 +48,7 @@ def generate_ppt():
     output_file = "generated/result.pptx"
 
     generate_presentation(
-        template_path="templates/template.pptx",
+        template_path=str(template_path),
         output_path=output_file,
         replacements=dummy_ai_response
     )
@@ -40,3 +58,4 @@ def generate_ppt():
         filename="generated_presentation.pptx",
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
+    
