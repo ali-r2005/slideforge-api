@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import uuid
 from fastapi import APIRouter, HTTPException
 from app.services.pptx_service import extract_ppt_metadata, generate_presentation
 from fastapi.responses import FileResponse
@@ -40,14 +40,15 @@ def generate_ppt(request: GeneratePresentationRequest):
             detail=f"Template '{template_name}' not found"
         )
 
-    dummy_ai_response = {
-        "title": "AI Presentation Generator",
-        "summary": "This presentation was generated automatically",
-        "problem_title": "The Problem",
-        "problem_description": "Creating presentations manually takes time"
-    }
-
-    output_file = "generated/result.pptx"
+    dummy_ai_response = {}
+    
+    metadata = extract_ppt_metadata(template_path=str(template_path))
+    fields = [placeholder["placeholder"] for slide in metadata for placeholder in slide["placeholders"]]
+    
+    for field in fields:
+        dummy_ai_response[field] = f"Sample content for {field}"  
+    
+    output_file = f"generated/{uuid.uuid4()}.pptx"
 
     generate_presentation(
         template_path=str(template_path),
