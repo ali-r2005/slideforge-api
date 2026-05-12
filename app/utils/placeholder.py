@@ -19,6 +19,6 @@ TYPE_MAX_CHARS = {
     "title": 40,
     "subtitle": 60,
     "paragraph": 150,
-    "bullet": 80,
+    "bullet_list": 80,
     "text": 100
 }

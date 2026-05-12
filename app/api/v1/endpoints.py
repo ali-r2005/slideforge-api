@@ -5,6 +5,7 @@ from app.services.pptx_service import extract_ppt_metadata, generate_presentatio
 from fastapi.responses import FileResponse
 from app.schemas.generate_schema import GeneratePresentationRequest
 from app.services.ai_service import generate_ai_content
+from app.utils.ai_validation import AIResponseValidationError
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -38,10 +39,17 @@ async def generate_ppt(request: GeneratePresentationRequest):
         for placeholder in slide["placeholders"]
     ]
     
-    ai_response = await generate_ai_content(
-        user_prompt=request.prompt,
-        fields=fields
-    )
+    try:
+        ai_response = await generate_ai_content(
+            user_prompt=request.prompt,
+            fields=fields
+        )
+    except AIResponseValidationError as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI returned invalid content: {error}"
+        ) from error
+
     print(f"AI response: {ai_response}")
     
     file_id = uuid.uuid4()

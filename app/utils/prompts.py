@@ -16,3 +16,42 @@ RULES:
 
 The JSON keys MUST exactly match the requested fields.
 """
+
+def build_user_prompt(user_prompt: str, fields: list[dict]):
+    fields_text = "\n\n".join(
+        [
+            "\n".join([
+                f"Field: {field['placeholder']}",
+                f"- Slide: {field['slide_number']}",
+                f"- Type: {field['type']}",
+                f"- Max chars: {field['max_chars']}"
+            ])
+            for field in fields
+        ]
+    )
+
+    return f"""
+Generate presentation content.
+
+Presentation topic:
+{user_prompt}
+
+Requirements:
+
+{fields_text}
+"""
+
+def build_correction_prompt(original_prompt: str, invalid_content: str, validation_error: str):
+    return f"""
+Your previous response was invalid.
+
+Validation errors:
+{validation_error}
+
+Previous response:
+{invalid_content}
+
+Return corrected JSON only.
+
+{original_prompt}
+"""

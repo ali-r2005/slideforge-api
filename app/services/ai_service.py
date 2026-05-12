@@ -8,7 +8,12 @@ from langchain_core.messages import (
 from dotenv import load_dotenv
 import os
 
-from app.utils.prompts import SYSTEM_PROMPT
+from app.utils.ai_validation import AIResponseValidationError, validate_ai_response
+from app.utils.prompts import (
+    SYSTEM_PROMPT,
+    build_correction_prompt,
+    build_user_prompt
+)
 
 load_dotenv()
 
@@ -19,29 +24,13 @@ llm = ChatOpenAI(
     temperature=0.7
 )
 
-def build_user_prompt(user_prompt: str, fields: list[dict]):
-    fields_text = "\n\n".join(
-        [
-            "\n".join([
-                f"Field: {field['placeholder']}",
-                f"- Slide: {field['slide_number']}",
-                f"- Type: {field['type']}",
-                f"- Max chars: {field['max_chars']}"
-            ])
-            for field in fields
-        ]
-    )
+async def _request_ai_content(prompt: str):
+    response = await llm.ainvoke([
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=prompt)
+    ])
 
-    return f"""
-Generate presentation content.
-
-Presentation topic:
-{user_prompt}
-
-Requirements:
-
-{fields_text}
-"""
+    return response.content
 
 async def generate_ai_content(user_prompt: str, fields: list[dict]):
     prompt = build_user_prompt(
@@ -49,11 +38,26 @@ async def generate_ai_content(user_prompt: str, fields: list[dict]):
         fields=fields
     )
 
-    response = await llm.ainvoke([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=prompt)
-    ])
+    last_error = None
 
-    content = response.content
+    for attempt in range(2):
+        content = await _request_ai_content(prompt)
 
-    return json.loads(content)
+        try:
+            data = json.loads(content)
+            return validate_ai_response(
+                data=data,
+                fields=fields,
+                trim_long_fields=attempt == 1
+            )
+        except (json.JSONDecodeError, AIResponseValidationError) as error:
+            last_error = error
+            prompt = build_correction_prompt(
+                original_prompt=prompt,
+                invalid_content=content,
+                validation_error=str(error)
+            )
+
+    raise AIResponseValidationError(
+        f"AI returned invalid content after retry: {last_error}"
+    )
