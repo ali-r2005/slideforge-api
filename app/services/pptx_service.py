@@ -54,6 +54,8 @@ def generate_presentation(
             if hasattr(shape, "text"):
 
                 for key, value in replacements.items():
+                    if isinstance(value, list):
+                        value = "\n".join(value)
 
                     placeholder = f"{{{{{key}}}}}"
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from app.services.pptx_service import extract_ppt_metadata, generate_presentation
 from fastapi.responses import FileResponse
 from app.schemas.generate_schema import GeneratePresentationRequest
+from app.services.ai_service import generate_ai_content
 
 router = APIRouter()
 
@@ -20,7 +21,7 @@ def get_template_metadata():
     }
 
 @router.post("/generate-ppt")
-def generate_ppt(request: GeneratePresentationRequest):
+async def generate_ppt(request: GeneratePresentationRequest):
     template_name = f"{request.template_name}.pptx"
     print(f"Received request to generate presentation using template: {template_name}")
     templates_dir = Path("templates").resolve()
@@ -39,21 +40,22 @@ def generate_ppt(request: GeneratePresentationRequest):
             status_code=404,
             detail=f"Template '{template_name}' not found"
         )
-
-    dummy_ai_response = {}
     
     metadata = extract_ppt_metadata(template_path=str(template_path))
     fields = [placeholder["placeholder"] for slide in metadata for placeholder in slide["placeholders"]]
     
-    for field in fields:
-        dummy_ai_response[field] = f"Sample content for {field}"  
+    ai_response = await generate_ai_content(
+        user_prompt=request.prompt,
+        fields=fields
+    )
+    print(f"AI response: {ai_response}")
     
     output_file = f"generated/{uuid.uuid4()}.pptx"
 
     generate_presentation(
         template_path=str(template_path),
         output_path=output_file,
-        replacements=dummy_ai_response
+        replacements=ai_response
     )
 
     return FileResponse(
