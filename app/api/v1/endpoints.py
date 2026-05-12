@@ -5,25 +5,15 @@ from app.services.pptx_service import extract_ppt_metadata, generate_presentatio
 from fastapi.responses import FileResponse
 from app.schemas.generate_schema import GeneratePresentationRequest
 from app.services.ai_service import generate_ai_content
+import logging
 
+logging.basicConfig(level=logging.INFO)
 router = APIRouter()
-
-@router.get("/template-metadata")
-def get_template_metadata():
-
-    metadata = extract_ppt_metadata(
-        "templates/template.pptx"
-    )
-
-    return {
-        "success": True,
-        "data": metadata
-    }
 
 @router.post("/generate-ppt")
 async def generate_ppt(request: GeneratePresentationRequest):
     template_name = f"{request.template_name}.pptx"
-    print(f"Received request to generate presentation using template: {template_name}")
+    logging.info(f"Received request to generate presentation using template: {template_name}")
     templates_dir = Path("templates").resolve()
     template_path = (templates_dir / template_name).resolve()
 
@@ -42,7 +32,11 @@ async def generate_ppt(request: GeneratePresentationRequest):
         )
     
     metadata = extract_ppt_metadata(template_path=str(template_path))
-    fields = [placeholder["placeholder"] for slide in metadata for placeholder in slide["placeholders"]]
+    fields = [
+        placeholder
+        for slide in metadata
+        for placeholder in slide["placeholders"]
+    ]
     
     ai_response = await generate_ai_content(
         user_prompt=request.prompt,
@@ -50,7 +44,9 @@ async def generate_ppt(request: GeneratePresentationRequest):
     )
     print(f"AI response: {ai_response}")
     
-    output_file = f"generated/{uuid.uuid4()}.pptx"
+    file_id = uuid.uuid4()
+    output_file = f"generated/{file_id}.pptx"
+    download_name = f"presentation_{file_id}.pptx"
 
     generate_presentation(
         template_path=str(template_path),
@@ -60,7 +56,7 @@ async def generate_ppt(request: GeneratePresentationRequest):
 
     return FileResponse(
         path=output_file,
-        filename="generated_presentation.pptx",
+        filename=download_name,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
     

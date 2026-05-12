@@ -1,5 +1,6 @@
 from pptx import Presentation
 import re
+from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS
 
 # metadata extraction and presentation generation logic will be use by an ai agent to create pptx files based on user input and a template file. The pptx template will have placeholders like {{title}}, {{summary}}, etc. which will be replaced by the ai agent with actual content before generating the final presentation.
 def extract_ppt_metadata(template_path: str):
@@ -31,9 +32,17 @@ def extract_ppt_metadata(template_path: str):
 
             for match in matches:
 
+                placeholder_type = infer_placeholder_type(match)
+
                 slide_info["placeholders"].append({
+                    "placeholder": match,
+                    "slide_number": slide_index + 1,
                     "shape_index": shape_index,
-                    "placeholder": match
+                    "type": placeholder_type,
+                    "max_chars": TYPE_MAX_CHARS.get(
+                        placeholder_type,
+                        100
+                    )
                 })
 
         slides_data.append(slide_info)

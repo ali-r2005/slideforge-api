@@ -19,22 +19,31 @@ llm = ChatOpenAI(
     temperature=0.7
 )
 
-def build_user_prompt(user_prompt: str, fields: list[str]):
-    fields_text = "\n".join(
-        [f"- {field}" for field in fields]
+def build_user_prompt(user_prompt: str, fields: list[dict]):
+    fields_text = "\n\n".join(
+        [
+            "\n".join([
+                f"Field: {field['placeholder']}",
+                f"- Slide: {field['slide_number']}",
+                f"- Type: {field['type']}",
+                f"- Max chars: {field['max_chars']}"
+            ])
+            for field in fields
+        ]
     )
 
     return f"""
-Generate presentation content for this request:
+Generate presentation content.
 
+Presentation topic:
 {user_prompt}
 
-Return JSON with these fields:
+Requirements:
 
 {fields_text}
 """
 
-async def generate_ai_content(user_prompt: str, fields: list[str]):
+async def generate_ai_content(user_prompt: str, fields: list[dict]):
     prompt = build_user_prompt(
         user_prompt=user_prompt,
         fields=fields
