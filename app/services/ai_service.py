@@ -25,10 +25,15 @@ llm = ChatOpenAI(
 )
 
 async def _request_ai_content(prompt: str):
-    response = await llm.ainvoke([
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=prompt)
-    ])
+    try:
+        response = await llm.ainvoke([
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=prompt)
+        ])
+    except Exception as error:
+        raise AIResponseValidationError(
+            f"AI provider request failed: {error}"
+        ) from error
 
     return response.content
 
@@ -42,13 +47,15 @@ async def generate_ai_content(user_prompt: str, fields: list[dict]):
 
     for attempt in range(2):
         content = await _request_ai_content(prompt)
+        print("Raw AI content:", content)
 
         try:
             data = json.loads(content)
             return validate_ai_response(
                 data=data,
                 fields=fields,
-                trim_long_fields=attempt == 1
+                #trim_long_fields=attempt == 1
+                trim_long_fields=True
             )
         except (json.JSONDecodeError, AIResponseValidationError) as error:
             last_error = error

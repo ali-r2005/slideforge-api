@@ -11,6 +11,30 @@ import logging
 logging.basicConfig(level=logging.INFO)
 router = APIRouter()
 
+@router.get("/templates")
+def get_templates():
+    templates_dir = Path("templates").resolve()
+
+    if not templates_dir.is_dir():
+        return {
+            "success": True,
+            "data": []
+        }
+
+    templates = [
+        {
+            "name": template_path.stem,
+            "filename": template_path.name
+        }
+        for template_path in sorted(templates_dir.glob("*.pptx"))
+        if template_path.is_file()
+    ]
+
+    return {
+        "success": True,
+        "data": templates
+    }
+
 @router.post("/generate-ppt")
 async def generate_ppt(request: GeneratePresentationRequest):
     template_name = f"{request.template_name}.pptx"
