@@ -2,11 +2,11 @@ from pathlib import Path
 import uuid
 from fastapi import APIRouter, HTTPException
 from app.services.pptx_service import (
+    attach_placeholder_values,
     convert_pptx_to_pdf,
     extract_ppt_metadata,
     generate_presentation
 )
-from fastapi.responses import FileResponse
 from app.schemas.generate_schema import GeneratePresentationRequest
 from app.services.ai_service import generate_ai_content
 from app.utils.ai_validation import AIResponseValidationError
@@ -82,7 +82,6 @@ async def generate_ppt(request: GeneratePresentationRequest):
     
     file_id = uuid.uuid4()
     output_file = f"generated/{file_id}.pptx"
-    download_name = f"presentation_{file_id}.pdf"
 
     generate_presentation(
         template_path=str(template_path),
@@ -101,9 +100,14 @@ async def generate_ppt(request: GeneratePresentationRequest):
             detail=str(error)
         ) from error
 
-    return FileResponse(
-        path=pdf_file,
-        filename=download_name,
-        media_type="application/pdf"
+    metadata_with_values = attach_placeholder_values(
+        metadata=metadata,
+        replacements=ai_response
     )
+
+    return {
+        "presentation_data": metadata_with_values,
+        "pdf_url": f"/generated/{Path(pdf_file).name}",
+        "pptx_url": f"/generated/{Path(output_file).name}"
+    }
     

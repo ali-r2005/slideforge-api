@@ -81,6 +81,21 @@ def generate_presentation(
 
     return output_path
 
+def attach_placeholder_values(metadata: list[dict], replacements: dict):
+    return [
+        {
+            **slide,
+            "placeholders": [
+                {
+                    **placeholder,
+                    "value": replacements.get(placeholder["placeholder"])
+                }
+                for placeholder in slide["placeholders"]
+            ]
+        }
+        for slide in metadata
+    ]
+
 def _find_soffice_path():
     soffice_path = shutil.which("soffice") or shutil.which("libreoffice")
 
