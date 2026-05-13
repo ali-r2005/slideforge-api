@@ -1,7 +1,11 @@
 from pathlib import Path
 import uuid
 from fastapi import APIRouter, HTTPException
-from app.services.pptx_service import extract_ppt_metadata, generate_presentation
+from app.services.pptx_service import (
+    convert_pptx_to_pdf,
+    extract_ppt_metadata,
+    generate_presentation
+)
 from fastapi.responses import FileResponse
 from app.schemas.generate_schema import GeneratePresentationRequest
 from app.services.ai_service import generate_ai_content
@@ -78,7 +82,7 @@ async def generate_ppt(request: GeneratePresentationRequest):
     
     file_id = uuid.uuid4()
     output_file = f"generated/{file_id}.pptx"
-    download_name = f"presentation_{file_id}.pptx"
+    download_name = f"presentation_{file_id}.pdf"
 
     generate_presentation(
         template_path=str(template_path),
@@ -86,9 +90,20 @@ async def generate_ppt(request: GeneratePresentationRequest):
         replacements=ai_response
     )
 
+    try:
+        pdf_file = convert_pptx_to_pdf(
+            pptx_path=output_file,
+            output_dir="generated"
+        )
+    except RuntimeError as error:
+        raise HTTPException(
+            status_code=500,
+            detail=str(error)
+        ) from error
+
     return FileResponse(
-        path=output_file,
+        path=pdf_file,
         filename=download_name,
-        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        media_type="application/pdf"
     )
     

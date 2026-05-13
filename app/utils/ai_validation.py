@@ -65,14 +65,14 @@ def validate_ai_response(data: dict, fields: list[dict], trim_long_fields: bool 
             errors.append(f"{name} must be text")
             continue
 
-        value_text = _field_value_text(value)
-        max_chars = field["max_chars"]
+        # value_text = _field_value_text(value)
+        # max_chars = field["max_chars"]
 
-        if len(value_text) > max_chars:
-            if trim_long_fields:
-                data[name] = _trim_value(value, max_chars)
-            else:
-                errors.append(f"{name} is longer than {max_chars} characters")
+        # if len(value_text) > max_chars:
+        #     if trim_long_fields:
+        #         data[name] = _trim_value(value, max_chars)
+        #     else:
+        #         errors.append(f"{name} is longer than {max_chars} characters")
 
     if errors:
         raise AIResponseValidationError("; ".join(errors))
