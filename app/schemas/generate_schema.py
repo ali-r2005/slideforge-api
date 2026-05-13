@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class GeneratePresentationRequest(BaseModel):
     template_name: str = Field(
         min_length=1,
@@ -10,3 +11,8 @@ class GeneratePresentationRequest(BaseModel):
         min_length=5,
         max_length=5000
     )
+
+class UpdatePresentationRequest(BaseModel):
+    template_name: str = Field(min_length=1)
+    file_id: str = Field(min_length=1)
+    replacements: dict
