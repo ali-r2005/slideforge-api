@@ -15,6 +15,16 @@ import logging
 logging.basicConfig(level=logging.INFO)
 router = APIRouter()
 
+#get metadata endpoint just for debuging
+@router.get("/metadata/{template_name}")
+async def get_metadata(template_name: str):
+    template_path = Path(f"templates/{template_name}.pptx").resolve()
+    metadata = extract_ppt_metadata(template_path=str(template_path))
+    return {
+        "success": True,
+        "data": metadata
+    }
+
 @router.get("/templates")
 def get_templates():
     templates_dir = Path("templates").resolve()
@@ -66,6 +76,7 @@ async def generate_ppt(request: GeneratePresentationRequest):
         for slide in metadata
         for placeholder in slide["placeholders"]
     ]
+    logging.info(f"Fields: {fields}")
     
     try:
         ai_response = await generate_ai_content(
