@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS
+from app.utils.map_logic import apply_map_logic
 import logging
 
 # metadata extraction and presentation generation logic will be use by an ai agent to create pptx files based on user input and a template file. The pptx template will have placeholders like {{title}}, {{summary}}, etc. which will be replaced by the ai agent with actual content before generating the final presentation.
@@ -21,13 +22,13 @@ def extract_ppt_metadata(template_path: str):
             "slide_number": slide_index + 1,
             "placeholders": []
         }
-        logging.info(f"Slide {slide_index + 1}")
+        # logging.info(f"Slide {slide_index + 1}")
 
         for shape_index, shape in enumerate(slide.shapes):
-            logging.info(f"Shape {shape_index} in slide {slide_index + 1}")
-            logging.info(f"Shape: {shape}")
-            logging.info(f"Shape text: {getattr(shape, 'text', 'No text attribute')}")
-            logging.info(f"Shape has text: {hasattr(shape, 'text')}")
+            # logging.info(f"Shape {shape_index} in slide {slide_index + 1}")
+            # logging.info(f"Shape: {shape}")
+            # logging.info(f"Shape text: {getattr(shape, 'text', 'No text attribute')}")
+            # logging.info(f"Shape has text: {hasattr(shape, 'text')}")
 
             if not hasattr(shape, "text"):
                 continue
@@ -82,6 +83,9 @@ def generate_presentation(
                             placeholder,
                             value
                         )
+        
+        # Apply custom map highlighting and pointer logic
+        apply_map_logic(slide, replacements)
 
     presentation.save(output_path)
 
