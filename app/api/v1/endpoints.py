@@ -89,7 +89,7 @@ async def generate_ppt(request: GeneratePresentationRequest):
             detail=f"AI returned invalid content: {error}"
         ) from error
 
-    print(f"AI response: {ai_response}")
+    logging.info(f"AI response: {ai_response}")
     
     file_id = uuid.uuid4()
     output_file = f"generated/{file_id}.pptx"
