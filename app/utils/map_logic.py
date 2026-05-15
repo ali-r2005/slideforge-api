@@ -1,14 +1,8 @@
 from pptx.dml.color import RGBColor
 import logging
 
-def get_shape_alt_text(shape):
-    """
-    Robustly retrieves Alt Text from any shape type by searching the underlying XML.
-    """
-    try:
-        return shape._element.xpath('.//@descr')[0].strip()
-    except Exception:
-        return getattr(shape, "name", "").strip()
+from app.utils.pptx_utils import get_shape_alt_text
+
 
 def apply_map_logic(slide, replacements):
     """

@@ -13,6 +13,12 @@ def infer_placeholder_type(field_name: str):
     if "subtitle" in field_name:
         return "subtitle"
 
+    if "image:logo" in field_name:
+        return "image_logo"
+    
+    if "image:topic" in field_name or "image:bg" in field_name or "image:photo" in field_name:
+        return "image_topic"
+
     return "text"
 
 TYPE_MAX_CHARS = {
@@ -20,5 +26,7 @@ TYPE_MAX_CHARS = {
     "subtitle": 60,
     "paragraph": 150,
     "bullet_list": 80,
-    "text": 100
+    "text": 100,
+    "image_logo": 50,
+    "image_topic": 50
 }

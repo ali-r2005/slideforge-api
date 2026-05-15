@@ -13,6 +13,8 @@ RULES:
 - Titles should be short.
 - Paragraphs should not be too long.
 - Bullet-style wording is preferred.
+- For 'image_logo' types: return ONLY the primary domain name (e.g., tesla.com).
+- For 'image_topic' types: return a 2-4 word search query for a high-quality stock photo (e.g., 'modern boardroom', 'team high five', 'tangier morocco').
 
 The JSON keys MUST exactly match the requested fields.
 """

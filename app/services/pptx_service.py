@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS
 from app.utils.map_logic import apply_map_logic
+from app.utils.pptx_utils import get_shape_alt_text
+from app.services.image_service import get_company_logo_path, get_topic_image_path, cleanup_temp_images
 import logging
 
 # metadata extraction and presentation generation logic will be use by an ai agent to create pptx files based on user input and a template file. The pptx template will have placeholders like {{title}}, {{summary}}, etc. which will be replaced by the ai agent with actual content before generating the final presentation.
@@ -30,30 +32,36 @@ def extract_ppt_metadata(template_path: str):
             # logging.info(f"Shape text: {getattr(shape, 'text', 'No text attribute')}")
             # logging.info(f"Shape has text: {hasattr(shape, 'text')}")
 
-            if not hasattr(shape, "text"):
-                continue
+            # 1. Check text for placeholders
+            if hasattr(shape, "text") and shape.text.strip():
+                matches = re.findall(pattern, shape.text.strip())
+                for match in matches:
+                    placeholder_type = infer_placeholder_type(match)
+                    slide_info["placeholders"].append({
+                        "placeholder": match,
+                        "slide_number": slide_index + 1,
+                        "shape_index": shape_index,
+                        "type": placeholder_type,
+                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100)
+                    })
 
-            text = shape.text.strip()
-
-            if not text:
-                continue
-
-            matches = re.findall(pattern, text)
-
-            for match in matches:
-
-                placeholder_type = infer_placeholder_type(match)
-
-                slide_info["placeholders"].append({
-                    "placeholder": match,
-                    "slide_number": slide_index + 1,
-                    "shape_index": shape_index,
-                    "type": placeholder_type,
-                    "max_chars": TYPE_MAX_CHARS.get(
-                        placeholder_type,
-                        100
-                    )
-                })
+            # 2. Check Alt Text for placeholders (common for images)
+            alt_text = get_shape_alt_text(shape)
+            if alt_text:
+                matches = re.findall(pattern, alt_text)
+                for match in matches:
+                    # Avoid duplicate detection if it was already in the text (rare)
+                    if any(p["placeholder"] == match and p["shape_index"] == shape_index for p in slide_info["placeholders"]):
+                        continue
+                        
+                    placeholder_type = infer_placeholder_type(match)
+                    slide_info["placeholders"].append({
+                        "placeholder": match,
+                        "slide_number": slide_index + 1,
+                        "shape_index": shape_index,
+                        "type": placeholder_type,
+                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100)
+                    })
 
         slides_data.append(slide_info)
 
@@ -66,29 +74,68 @@ def generate_presentation(
 ):
 
     presentation = Presentation(template_path)
+    pattern = r"\{\{(.*?)\}\}"
+    shapes_to_remove = []
 
     for slide in presentation.slides:
         for shape in slide.shapes:
+            # 1. Check Alt Text for Image Placeholders
+            alt_text = get_shape_alt_text(shape)
+            if alt_text:
+                matches = re.findall(pattern, alt_text)
+                for match in matches:
+                    if "image:logo" in match.lower():
+                        domain = replacements.get(match)
+                        if domain:
+                            logo_path = get_company_logo_path(domain)
+                            if logo_path:
+                                # Add the picture at the same position and size
+                                slide.shapes.add_picture(
+                                    logo_path,
+                                    shape.left,
+                                    shape.top,
+                                    width=shape.width,
+                                    height=shape.height
+                                )
+                                shapes_to_remove.append((slide, shape))
+                    elif "image:topic" in match.lower() or "image:bg" in match.lower():
+                        query = replacements.get(match)
+                        if query:
+                            img_path = get_topic_image_path(query)
+                            if img_path:
+                                # Add the picture at the same position and size
+                                slide.shapes.add_picture(
+                                    img_path,
+                                    shape.left,
+                                    shape.top,
+                                    width=shape.width,
+                                    height=shape.height
+                                )
+                                shapes_to_remove.append((slide, shape))
 
+            # 2. Check Text for Text Placeholders
             if hasattr(shape, "text"):
-
                 for key, value in replacements.items():
                     if isinstance(value, list):
                         value = "\n".join(value)
 
                     placeholder = f"{{{{{key}}}}}"
-
                     if placeholder in shape.text:
-                        shape.text = shape.text.replace(
-                            placeholder,
-                            value
-                        )
+                        shape.text = shape.text.replace(placeholder, str(value))
         
         # Apply custom map highlighting and pointer logic
         apply_map_logic(slide, replacements)
 
-    presentation.save(output_path)
+    # Clean up: Remove original placeholder shapes that were replaced by images
+    for slide, shape in shapes_to_remove:
+        try:
+            sp = shape._element
+            sp.getparent().remove(sp)
+        except Exception as e:
+            logging.error(f"Error removing shape: {e}")
 
+    presentation.save(output_path)
+    cleanup_temp_images()
     return output_path
 
 def attach_placeholder_values(metadata: list[dict], replacements: dict):
