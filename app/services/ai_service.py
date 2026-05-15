@@ -1,4 +1,5 @@
 import json
+import re
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import (
     SystemMessage,
@@ -17,12 +18,23 @@ from app.utils.prompts import (
 
 load_dotenv()
 
+# We use JSON mode to force the model to return valid JSON
 llm = ChatOpenAI(
     model=os.getenv("OPENROUTER_MODEL"),
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENROUTER_API_KEY"),
-    temperature=0.7
+    temperature=0.7,
+    model_kwargs={"response_format": {"type": "json_object"}}
 )
+
+def extract_json(content: str) -> str:
+    """
+    Cleans the AI response by removing markdown code blocks if present.
+    """
+    # Remove markdown code blocks like ```json ... ```
+    content = re.sub(r"```json\s*", "", content)
+    content = re.sub(r"```\s*", "", content)
+    return content.strip()
 
 async def _request_ai_content(prompt: str):
     try:
@@ -46,15 +58,16 @@ async def generate_ai_content(user_prompt: str, fields: list[dict]):
     last_error = None
 
     for attempt in range(2):
-        content = await _request_ai_content(prompt)
-        print("Raw AI content:", content)
+        raw_content = await _request_ai_content(prompt)
+        content = extract_json(raw_content)
+        
+        print("Raw AI content:", raw_content)
 
         try:
             data = json.loads(content)
             return validate_ai_response(
                 data=data,
                 fields=fields,
-                #trim_long_fields=attempt == 1
                 trim_long_fields=True
             )
         except (json.JSONDecodeError, AIResponseValidationError) as error:

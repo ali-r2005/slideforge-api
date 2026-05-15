@@ -15,6 +15,7 @@ RULES:
 - Bullet-style wording is preferred.
 - For 'image_logo' types: return ONLY the primary domain name (e.g., tesla.com).
 - For 'image_topic' types: return a 2-4 word search query for a high-quality stock photo (e.g., 'modern boardroom', 'team high five', 'tangier morocco').
+- For 'table' types: return a LIST of LISTS. Each inner list represents a row and must have exactly the number of columns requested. Do not include the header row.
 
 The JSON keys MUST exactly match the requested fields.
 """
@@ -26,7 +27,8 @@ def build_user_prompt(user_prompt: str, fields: list[dict]):
                 f"Field: {field['placeholder']}",
                 f"- Slide: {field['slide_number']}",
                 f"- Type: {field['type']}",
-                f"- Max chars: {field['max_chars']}"
+                f"- Max chars: {field['max_chars']}",
+                f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else ""
             ])
             for field in fields
         ]

@@ -1,34 +1,6 @@
 class AIResponseValidationError(ValueError):
     pass
 
-
-def _field_value_text(value):
-    if isinstance(value, list):
-        return "\n".join(str(item) for item in value)
-
-    return str(value)
-
-
-def _trim_value(value, max_chars: int):
-    if isinstance(value, list):
-        trimmed_items = []
-        remaining_chars = max_chars
-
-        for item in value:
-            item_text = str(item)
-            if remaining_chars <= 0:
-                break
-
-            trimmed_item = item_text[:remaining_chars].rstrip()
-            if trimmed_item:
-                trimmed_items.append(trimmed_item)
-                remaining_chars -= len(trimmed_item) + 1
-
-        return trimmed_items
-
-    return str(value)[:max_chars].rstrip()
-
-
 def validate_ai_response(data: dict, fields: list[dict], trim_long_fields: bool = False):
     if not isinstance(data, dict):
         raise AIResponseValidationError("AI response must be a JSON object")
@@ -45,34 +17,40 @@ def validate_ai_response(data: dict, fields: list[dict], trim_long_fields: bool 
             for field in sorted(missing_fields)
         )
 
+    # Remove extra fields we didn't ask for
     for extra_field in response_field_set - required_field_set:
         data.pop(extra_field, None)
 
     for field in fields:
         name = field["placeholder"]
-
         if name not in data:
             continue
 
         field_type = field["type"]
         value = data[name]
 
-        if field_type == "bullet_list" and not isinstance(value, list):
-            errors.append(f"{name} must be a list")
-            continue
+        # 1. Validate Type
+        if field_type in ["bullet_list", "table"]:
+            if not isinstance(value, list):
+                errors.append(f"{name} must be a list (current type: {type(value).__name__})")
+                continue
+            
+            # Further validation for tables
+            if field_type == "table":
+                expected_cols = field.get("columns", 0)
+                for row_idx, row in enumerate(value):
+                    if not isinstance(row, list):
+                        errors.append(f"Row {row_idx} of {name} must be a list")
+                    elif expected_cols > 0 and len(row) != expected_cols:
+                        errors.append(f"Row {row_idx} of {name} must have exactly {expected_cols} columns")
 
-        if field_type != "bullet_list" and not isinstance(value, str):
-            errors.append(f"{name} must be text")
-            continue
-
-        # value_text = _field_value_text(value)
-        # max_chars = field["max_chars"]
-
-        # if len(value_text) > max_chars:
-        #     if trim_long_fields:
-        #         data[name] = _trim_value(value, max_chars)
-        #     else:
-        #         errors.append(f"{name} is longer than {max_chars} characters")
+        else:
+            # Everything else should be text
+            if not isinstance(value, (str, int, float)):
+                errors.append(f"{name} must be text (current type: {type(value).__name__})")
+            else:
+                # Convert numbers to string
+                data[name] = str(value)
 
     if errors:
         raise AIResponseValidationError("; ".join(errors))
