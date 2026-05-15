@@ -326,3 +326,49 @@ def convert_pptx_to_pdf(pptx_path: str, output_dir: str = "generated"):
         )
 
     return str(pdf_path)
+
+def generate_template_thumbnail(template_path: str, output_dir: str = "public/thumbnails"):
+    """
+    Generates a PNG thumbnail of the first slide of a PPTX template.
+    """
+    soffice_path = _find_soffice_path()
+    if not soffice_path:
+        return None
+
+    template_file = Path(template_path).resolve()
+    out_dir = Path(output_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    thumb_path = out_dir / f"{template_file.stem}.png"
+    
+    # If thumbnail already exists, don't regenerate (unless we want to force)
+    if thumb_path.is_file():
+        return str(thumb_path)
+
+    # LibreOffice conversion to PNG (exports slides as images)
+    subprocess.run(
+        [
+            soffice_path,
+            "--headless",
+            "--convert-to",
+            "png",
+            "--outdir",
+            str(out_dir),
+            str(template_file),
+        ],
+        capture_output=True,
+        timeout=30
+    )
+    
+    # LibreOffice might name it template_name-0.png or template_name.png
+    # Usually it's template_name.png for single slide or if it just does the first
+    possible_names = [f"{template_file.stem}.png", f"{template_file.stem}-0.png"]
+    for name in possible_names:
+        found = out_dir / name
+        if found.is_file():
+            if name != f"{template_file.stem}.png":
+                found.rename(thumb_path)
+            return str(thumb_path)
+
+    return None
+

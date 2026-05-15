@@ -5,7 +5,8 @@ from app.services.pptx_service import (
     attach_placeholder_values,
     convert_pptx_to_pdf,
     extract_ppt_metadata,
-    generate_presentation
+    generate_presentation,
+    generate_template_thumbnail
 )
 from app.schemas.generate_schema import GeneratePresentationRequest, UpdatePresentationRequest
 from app.services.ai_service import generate_ai_content
@@ -35,14 +36,17 @@ def get_templates():
             "data": []
         }
 
-    templates = [
-        {
-            "name": template_path.stem,
-            "filename": template_path.name
-        }
-        for template_path in sorted(templates_dir.glob("*.pptx"))
-        if template_path.is_file()
-    ]
+    templates = []
+    for template_path in sorted(templates_dir.glob("*.pptx")):
+        if template_path.is_file():
+            # Generate thumbnail if it doesn't exist
+            generate_template_thumbnail(str(template_path))
+            
+            templates.append({
+                "name": template_path.stem,
+                "filename": template_path.name,
+                "thumbnail_url": f"/thumbnails/{template_path.stem}.png"
+            })
 
     return {
         "success": True,
