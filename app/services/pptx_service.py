@@ -264,7 +264,7 @@ def attach_placeholder_values(metadata: list[dict], replacements: dict):
             "placeholders": [
                 {
                     **placeholder,
-                    "value": replacements.get(placeholder["placeholder"])
+                    "value": replacements.get(placeholder["placeholder"]) or ""
                 }
                 for placeholder in slide["placeholders"]
             ]
