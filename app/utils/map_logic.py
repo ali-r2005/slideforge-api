@@ -82,10 +82,10 @@ def apply_map_logic(slide, replacements):
         return
 
     if target_region:
-        # 1. Highlight region Yellow
+        # 1. Highlight region with golden color #FFC000
         try:
             target_region.fill.solid()
-            target_region.fill.fore_color.rgb = RGBColor(255, 255, 0)
+            target_region.fill.fore_color.rgb = RGBColor(255, 192, 0)
         except Exception as e:
             logging.warning(f"Could not color region: {e}")
 

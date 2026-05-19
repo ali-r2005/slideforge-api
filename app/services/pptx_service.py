@@ -3,7 +3,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS
+from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS, extract_placeholder_metadata
 from app.utils.map_logic import apply_map_logic
 from app.utils.pptx_utils import get_shape_alt_text
 from app.services.image_service import get_company_logo_path, get_topic_image_path, cleanup_temp_images
@@ -37,13 +37,17 @@ def extract_ppt_metadata(template_path: str):
             if hasattr(shape, "text") and shape.text.strip():
                 matches = re.findall(pattern, shape.text.strip())
                 for match in matches:
-                    placeholder_type = infer_placeholder_type(match)
+                    metadata = extract_placeholder_metadata(match)
+                    placeholder_name = metadata["name"]
+                    paragraphs_count = metadata["paragraphs"]
+                    placeholder_type = infer_placeholder_type(placeholder_name)
                     slide_info["placeholders"].append({
-                        "placeholder": match,
+                        "placeholder": placeholder_name,
                         "slide_number": slide_index + 1,
                         "shape_index": shape_index,
                         "type": placeholder_type,
-                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100)
+                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100),
+                        "paragraphs": paragraphs_count
                     })
 
             # 2. Check Alt Text for placeholders (common for images)
@@ -51,17 +55,22 @@ def extract_ppt_metadata(template_path: str):
             if alt_text:
                 matches = re.findall(pattern, alt_text)
                 for match in matches:
+                    metadata = extract_placeholder_metadata(match)
+                    placeholder_name = metadata["name"]
+                    paragraphs_count = metadata["paragraphs"]
+
                     # Avoid duplicate detection if it was already in the text (rare)
-                    if any(p["placeholder"] == match and p["shape_index"] == shape_index for p in slide_info["placeholders"]):
+                    if any(p["placeholder"] == placeholder_name and p["shape_index"] == shape_index for p in slide_info["placeholders"]):
                         continue
-                        
-                    placeholder_type = infer_placeholder_type(match)
+
+                    placeholder_type = infer_placeholder_type(placeholder_name)
                     slide_info["placeholders"].append({
-                        "placeholder": match,
+                        "placeholder": placeholder_name,
                         "slide_number": slide_index + 1,
                         "shape_index": shape_index,
                         "type": placeholder_type,
-                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100)
+                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100),
+                        "paragraphs": paragraphs_count
                     })
 
             # 3. Check for Tables with placeholders in Alt Text
@@ -70,21 +79,151 @@ def extract_ppt_metadata(template_path: str):
                 if alt_text:
                     matches = re.findall(pattern, alt_text)
                     for match in matches:
-                        placeholder_type = infer_placeholder_type(match)
+                        metadata = extract_placeholder_metadata(match)
+                        placeholder_name = metadata["name"]
+                        placeholder_type = infer_placeholder_type(placeholder_name)
                         if placeholder_type == "table":
                             slide_info["placeholders"].append({
-                                "placeholder": match,
+                                "placeholder": placeholder_name,
                                 "slide_number": slide_index + 1,
                                 "shape_index": shape_index,
                                 "type": "table",
                                 "columns": len(shape.table.columns),
-                                "max_chars": 500
+                                "max_chars": 500,
+                                "paragraphs": 1
                             })
 
 
         slides_data.append(slide_info)
 
     return slides_data
+
+def copy_run_formatting(source_run, target_run):
+    """
+    Copies all font formatting from source_run to target_run.
+    """
+    source_font = source_run.font
+    target_font = target_run.font
+
+    target_font.name = source_font.name
+    target_font.size = source_font.size
+    target_font.bold = source_font.bold
+    target_font.italic = source_font.italic
+    target_font.underline = source_font.underline
+
+    # Copy color
+    if source_font.color:
+        try:
+            if hasattr(source_font.color, 'rgb'):
+                target_font.color.rgb = source_font.color.rgb
+            elif hasattr(source_font.color, 'type'):
+                target_font.color.type = source_font.color.type
+        except:
+            pass
+
+
+def replace_text_preserve_formatting(shape, placeholder: str, value):
+    """
+    Replaces placeholder text in a shape while preserving the original formatting.
+    Handles both single text (str) and multiple paragraphs (list).
+    """
+    if not hasattr(shape, "text_frame"):
+        return False
+
+    text_frame = shape.text_frame
+
+    # Handle list of paragraphs (multi-paragraph values)
+    if isinstance(value, list) and len(text_frame.paragraphs) > 0:
+        # Find which paragraph contains the placeholder
+        placeholder_para_idx = None
+        template_run = None
+
+        for para_idx, paragraph in enumerate(text_frame.paragraphs):
+            if placeholder in paragraph.text:
+                placeholder_para_idx = para_idx
+                # Get formatting from first run
+                if paragraph.runs:
+                    template_run = paragraph.runs[0]
+                break
+
+        if placeholder_para_idx is not None:
+            template_paragraph = text_frame.paragraphs[placeholder_para_idx]
+
+            # Clear the placeholder paragraph
+            for run in list(template_paragraph.runs):
+                run.text = ""
+
+            # Add each paragraph from the list
+            for i, para_text in enumerate(value):
+                if i == 0:
+                    # Use the existing paragraph with the placeholder
+                    para = template_paragraph
+                else:
+                    # Add new paragraph after the current one
+                    para = text_frame.add_paragraph()
+
+                # Clear and add text
+                for run in list(para.runs):
+                    run.text = ""
+
+                run = para.add_run()
+                run.text = str(para_text)
+
+                # Apply template formatting
+                if template_run:
+                    copy_run_formatting(template_run, run)
+
+            return True
+
+        return False
+
+    # Handle single text value (original logic)
+    replaced = False
+
+    # Iterate through all paragraphs and runs
+    for paragraph in text_frame.paragraphs:
+        # Build a list of (run, start_index, end_index) for text search
+        run_info = []
+        cumulative_length = 0
+
+        for run in paragraph.runs:
+            start = cumulative_length
+            end = start + len(run.text)
+            run_info.append((run, start, end))
+            cumulative_length = end
+
+        # Get the full paragraph text
+        full_text = paragraph.text
+
+        # Find placeholder in full text
+        placeholder_start = full_text.find(placeholder)
+        if placeholder_start != -1:
+            placeholder_end = placeholder_start + len(placeholder)
+
+            # Find which runs this placeholder spans
+            affected_runs = []
+            for run, start, end in run_info:
+                if not (end <= placeholder_start or start >= placeholder_end):
+                    affected_runs.append((run, start, end))
+
+            if affected_runs:
+                # Get the first run's formatting as reference
+                reference_run = affected_runs[0][0]
+
+                # Clear all affected runs
+                for run, _, _ in affected_runs:
+                    run.text = ""
+
+                # Add replacement text to the first affected run
+                first_run = affected_runs[0][0]
+                first_run.text = str(value)
+
+                # Reapply formatting to the first run
+                copy_run_formatting(reference_run, first_run)
+
+                replaced = True
+
+    return replaced
 
 def generate_presentation(
     template_path: str,
@@ -122,29 +261,36 @@ def generate_presentation(
                         if query:
                             img_path = get_topic_image_path(query)
                             if img_path:
-                                # Add the picture at the same position and size
+                                # Add the picture with shape width only (crops to shape height)
                                 slide.shapes.add_picture(
                                     img_path,
                                     shape.left,
                                     shape.top,
-                                    width=shape.width,
-                                    height=shape.height
+                                    width=shape.width
                                 )
                                 shapes_to_remove.append((slide, shape))
 
             # 2. Check Text for Text Placeholders
             if hasattr(shape, "text"):
                 for key, value in replacements.items():
-                    # Handle bullet lists (list of strings)
-                    if isinstance(value, list):
-                        # If it's a table (list of lists), don't try to join it as text
-                        if value and isinstance(value[0], list):
-                            continue
-                        value = "\n".join(str(v) for v in value)
+                    # Look for placeholder with or without metadata
+                    # e.g., {{key}} or {{key:paragraphs=2}}
+                    placeholder_pattern = r"\{\{" + re.escape(key) + r"(?::paragraphs=\d+)?\}\}"
+                    match = re.search(placeholder_pattern, shape.text)
 
-                    placeholder = f"{{{{{key}}}}}"
-                    if placeholder in shape.text:
-                        shape.text = shape.text.replace(placeholder, str(value))
+                    if match:
+                        actual_placeholder = match.group(0)
+                        # Handle different value types
+                        if isinstance(value, list):
+                            # If it's a table (list of lists), skip - handled separately
+                            if value and isinstance(value[0], list):
+                                continue
+                            # For paragraph arrays, pass the list directly
+                            # For bullet lists (list of strings), join them
+                            # The function will handle both cases
+                            replace_text_preserve_formatting(shape, actual_placeholder, value)
+                        else:
+                            replace_text_preserve_formatting(shape, actual_placeholder, str(value))
 
             
             # 3. Check for Tables

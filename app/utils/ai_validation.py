@@ -28,13 +28,20 @@ def validate_ai_response(data: dict, fields: list[dict], trim_long_fields: bool 
 
         field_type = field["type"]
         value = data[name]
+        paragraphs_count = field.get("paragraphs", 1)
 
         # 1. Validate Type
-        if field_type in ["bullet_list", "table"]:
+        # Check if field should be a list
+        is_list_field = (
+            field_type in ["bullet_list", "table"] or
+            (field_type == "paragraph" and paragraphs_count > 1)
+        )
+
+        if is_list_field:
             if not isinstance(value, list):
                 errors.append(f"{name} must be a list (current type: {type(value).__name__})")
                 continue
-            
+
             # Further validation for tables
             if field_type == "table":
                 expected_cols = field.get("columns", 0)
@@ -44,13 +51,23 @@ def validate_ai_response(data: dict, fields: list[dict], trim_long_fields: bool 
                     elif expected_cols > 0 and len(row) != expected_cols:
                         errors.append(f"Row {row_idx} of {name} must have exactly {expected_cols} columns")
 
+            # Validation for multi-paragraph fields
+            elif field_type == "paragraph" and paragraphs_count > 1:
+                expected_paras = paragraphs_count
+                if len(value) != expected_paras:
+                    errors.append(f"{name} must have exactly {expected_paras} paragraphs (got {len(value)})")
+
         else:
             # Everything else should be text
-            if not isinstance(value, (str, int, float)):
+            if not isinstance(value, (str, int, float, list)):
                 errors.append(f"{name} must be text (current type: {type(value).__name__})")
             else:
-                # Convert numbers to string
-                data[name] = str(value)
+                # Convert numbers to string, but keep lists as-is (bullet items)
+                if isinstance(value, list):
+                    # Bullet list as array
+                    pass
+                else:
+                    data[name] = str(value)
 
     if errors:
         raise AIResponseValidationError("; ".join(errors))

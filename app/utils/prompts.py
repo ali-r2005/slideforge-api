@@ -16,6 +16,8 @@ RULES:
 - For 'image_logo' types: return ONLY the primary domain name (e.g., tesla.com).
 - For 'image_topic' types: return a 2-4 word search query for a high-quality stock photo (e.g., 'modern boardroom', 'team high five', 'tangier morocco').
 - For 'table' types: return a LIST of LISTS. Each inner list represents a row and must have exactly the number of columns requested. Do not include the header row.
+- For fields with 'Paragraphs: 2+': return a LIST of strings, one per paragraph. Example: ["First paragraph text.", "Second paragraph text."]
+  Each paragraph should be 1-2 sentences maximum.
 
 The JSON keys MUST exactly match the requested fields.
 """
@@ -23,13 +25,14 @@ The JSON keys MUST exactly match the requested fields.
 def build_user_prompt(user_prompt: str, fields: list[dict]):
     fields_text = "\n\n".join(
         [
-            "\n".join([
+            "\n".join(filter(None, [
                 f"Field: {field['placeholder']}",
                 f"- Slide: {field['slide_number']}",
                 f"- Type: {field['type']}",
                 f"- Max chars: {field['max_chars']}",
-                f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else ""
-            ])
+                f"- Paragraphs: {field.get('paragraphs', 1)}" if field.get('paragraphs', 1) > 1 else None,
+                f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else None
+            ]))
             for field in fields
         ]
     )
