@@ -11,6 +11,7 @@ from app.services.pptx_service import (
 from app.schemas.generate_schema import GeneratePresentationRequest, UpdatePresentationRequest
 from app.services.ai_service import generate_ai_content
 from app.utils.ai_validation import AIResponseValidationError
+from app.utils.template_metadata import load_template_metadata
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -73,7 +74,10 @@ async def generate_ppt(request: GeneratePresentationRequest):
             status_code=404,
             detail=f"Template '{template_name}' not found"
         )
-    
+
+    # Load template metadata
+    template_metadata = load_template_metadata(request.template_name, str(templates_dir))
+
     metadata = extract_ppt_metadata(template_path=str(template_path))
     fields = [
         placeholder
@@ -81,11 +85,12 @@ async def generate_ppt(request: GeneratePresentationRequest):
         for placeholder in slide["placeholders"]
     ]
     logging.info(f"Fields: {fields}")
-    
+
     try:
         ai_response = await generate_ai_content(
             user_prompt=request.prompt,
-            fields=fields
+            fields=fields,
+            template_metadata=template_metadata
         )
     except AIResponseValidationError as error:
         raise HTTPException(

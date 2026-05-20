@@ -209,17 +209,24 @@ def replace_text_preserve_formatting(shape, placeholder: str, value):
             if affected_runs:
                 # Get the first run's formatting as reference
                 reference_run = affected_runs[0][0]
+                replacement_str = str(value)
 
-                # Clear all affected runs
-                for run, _, _ in affected_runs:
-                    run.text = ""
-
-                # Add replacement text to the first affected run
-                first_run = affected_runs[0][0]
-                first_run.text = str(value)
-
-                # Reapply formatting to the first run
-                copy_run_formatting(reference_run, first_run)
+                # If placeholder is within a single run (most common case)
+                if len(affected_runs) == 1:
+                    run, run_start, run_end = affected_runs[0]
+                    # Calculate position within the run
+                    offset_start = placeholder_start - run_start
+                    offset_end = offset_start + len(placeholder)
+                    # Replace just the placeholder, keep rest of text
+                    run.text = run.text[:offset_start] + replacement_str + run.text[offset_end:]
+                    copy_run_formatting(reference_run, run)
+                else:
+                    # Placeholder spans multiple runs - clear all and put replacement in first
+                    for run, _, _ in affected_runs:
+                        run.text = ""
+                    first_run = affected_runs[0][0]
+                    first_run.text = replacement_str
+                    copy_run_formatting(reference_run, first_run)
 
                 replaced = True
 

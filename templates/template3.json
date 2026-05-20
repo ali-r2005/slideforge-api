@@ -1,0 +1,20 @@
+{
+  "name": "template3",
+  "description": "Destination showcase for corporate travel and team building",
+  "system_instructions": "Generate engaging travel destination content that appeals to corporate team-building events. Focus on practical benefits, accessibility, and unique experiences that enhance team cohesion.",
+  "tone": "professional yet engaging and aspirational",
+  "field_instructions": {
+    "title": "Create a compelling title that highlights the destination for corporate events. Format: '[Destination] for [Activity Type]' or '[Activity] in [Destination]'",
+    "destination_name": "Format as 'City, Country' (e.g., 'Tangier, Morocco')",
+    "destination_paragraph:paragraphs=2": {
+      "instructions": "Paragraph 1: Introduce the destination with its unique appeal - cultural heritage, geography, and what makes it special for corporate groups. Paragraph 2: Focus on practical benefits - climate, outdoor activity opportunities, accessibility, and logistics that matter for event planning.",
+      "min_length": "2 sentences per paragraph",
+      "key_points": ["destination appeal", "cultural value", "weather/climate", "practical logistics"]
+    }
+  },
+  "constraints": {
+    "avoid": ["generic tourism clichés", "overly promotional language"],
+    "focus_on": ["team-building potential", "unique experiences", "practical information", "authentic cultural aspects"],
+    "keep_professional": true
+  }
+}

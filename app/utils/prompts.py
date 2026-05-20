@@ -22,7 +22,11 @@ RULES:
 The JSON keys MUST exactly match the requested fields.
 """
 
-def build_user_prompt(user_prompt: str, fields: list[dict]):
+def build_user_prompt(user_prompt: str, fields: list[dict], template_metadata: dict = None):
+    if template_metadata is None:
+        template_metadata = {}
+
+    # Build field requirements
     fields_text = "\n\n".join(
         [
             "\n".join(filter(None, [
@@ -31,11 +35,25 @@ def build_user_prompt(user_prompt: str, fields: list[dict]):
                 f"- Type: {field['type']}",
                 f"- Max chars: {field['max_chars']}",
                 f"- Paragraphs: {field.get('paragraphs', 1)}" if field.get('paragraphs', 1) > 1 else None,
-                f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else None
+                f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else None,
+                get_field_instruction_section(template_metadata, field['placeholder'])
             ]))
             for field in fields
         ]
     )
+
+    # Build template-level instructions
+    template_instructions = ""
+    if template_metadata:
+        system_instr = template_metadata.get("system_instructions", "")
+        tone = template_metadata.get("tone", "")
+
+        if system_instr or tone:
+            template_instructions = "\n\nTemplate-specific guidelines:\n"
+            if system_instr:
+                template_instructions += f"- {system_instr}\n"
+            if tone:
+                template_instructions += f"- Tone: {tone}\n"
 
     return f"""
 Generate presentation content.
@@ -46,7 +64,26 @@ Presentation topic:
 Requirements:
 
 {fields_text}
+{template_instructions}
 """
+
+
+def get_field_instruction_section(template_metadata: dict, field_name: str) -> str:
+    """Helper to get field-specific instructions from metadata."""
+    if not template_metadata:
+        return None
+
+    field_instructions = template_metadata.get("field_instructions", {})
+    field_meta = field_instructions.get(field_name, {})
+
+    if isinstance(field_meta, dict):
+        instructions = field_meta.get("instructions", "")
+        if instructions:
+            return f"- Special instructions: {instructions}"
+    elif isinstance(field_meta, str):
+        return f"- Special instructions: {field_meta}"
+
+    return None
 
 def build_correction_prompt(original_prompt: str, invalid_content: str, validation_error: str):
     return f"""

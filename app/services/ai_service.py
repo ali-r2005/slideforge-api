@@ -49,10 +49,11 @@ async def _request_ai_content(prompt: str):
 
     return response.content
 
-async def generate_ai_content(user_prompt: str, fields: list[dict]):
+async def generate_ai_content(user_prompt: str, fields: list[dict], template_metadata: dict = None):
     prompt = build_user_prompt(
         user_prompt=user_prompt,
-        fields=fields
+        fields=fields,
+        template_metadata=template_metadata
     )
 
     last_error = None
@@ -60,7 +61,7 @@ async def generate_ai_content(user_prompt: str, fields: list[dict]):
     for attempt in range(2):
         raw_content = await _request_ai_content(prompt)
         content = extract_json(raw_content)
-        
+
         print("Raw AI content:", raw_content)
 
         try:
