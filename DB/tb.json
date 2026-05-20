@@ -1,0 +1,28 @@
+[
+    {
+        "id": 1,
+        "name": "Escape The Maze",
+        "type": [
+            "Indoor",
+            "Outdoor"
+        ],
+        "objectives": [
+            "communication",
+            "collaboration",
+            "problem solving"
+        ],
+        "experience": [
+            "immersive",
+            "competitive"
+        ],
+        "les_plus": [
+            "team cohesion",
+            "strategic thinking"
+        ],
+        "keywords": [
+            "maze",
+            "challenge",
+            "strategy"
+        ]
+    }
+]

@@ -68,6 +68,79 @@ PEXELS_API_KEY=your_key
 LOGO_DEV_PUBLIC_KEY=your_key
 ```
 
+## 📋 Schema-Driven Forms
+
+Templates can define a JSON schema to collect structured form data from users instead of (or in addition to) a text prompt.
+
+### Schema Structure
+
+Each schema file should be named `{template_name}-schema.json` and placed in `templates/schemas/`:
+
+```json
+{
+  "template_name": "template_name",
+  "description": "Description shown to users",
+  "fields": [
+    {
+      "name": "field_name",
+      "type": "text|textarea|number|email|date|enum|boolean",
+      "required": true,
+      "label": "Field Label",
+      "description": "Help text shown to users",
+      "values": ["option1", "option2"],  // For enum type
+      "min": 0,                          // For number type
+      "max": 100,                        // For number type
+      "max_length": 200                  // For text/textarea
+    }
+  ],
+  "groups": [                            // Optional: organize fields visually
+    {
+      "name": "Group Name",
+      "description": "Group description",
+      "fields": ["field_name1", "field_name2"]
+    }
+  ]
+}
+```
+
+### Field Types
+
+- **text**: Single-line text input (supports max_length)
+- **textarea**: Multi-line text input (supports max_length)
+- **number**: Numeric input (supports min/max)
+- **email**: Email validation required
+- **date**: Date picker (YYYY-MM-DD format)
+- **enum**: Dropdown select (requires values array)
+- **boolean**: Checkbox
+
+### Form Groups
+
+Groups organize related fields into visually separated sections. For example:
+
+```json
+"groups": [
+  {
+    "name": "Contact Information",
+    "description": "Primary contact details",
+    "fields": ["first_name", "last_name", "email", "phone"]
+  },
+  {
+    "name": "Company Details",
+    "description": "Business information",
+    "fields": ["company_name", "industry", "employee_count"]
+  }
+]
+```
+
+Groups are optional. If not specified, all fields display in a flat list. Fields not referenced in any group appear at the top.
+
+### Example Schemas
+
+See `templates/schemas/` directory for examples:
+- `template3-schema.json` - Event details with scheduling
+- `event_template-schema.json` - Full event planning form
+- `corporate_pitch-schema.json` - Contact and company information
+
 ## 📦 Requirements
 - Python 3.10+
 - `python-pptx`

@@ -60,6 +60,7 @@ class SchemaLoader:
     def _validate_schema_structure(self, schema: Dict[str, Any]) -> bool:
         """
         Validates that schema has the required structure.
+        Supports optional groups for organizing fields.
         """
         if not isinstance(schema, dict):
             return False
@@ -84,6 +85,25 @@ class SchemaLoader:
             valid_types = {"text", "textarea", "number", "email", "date", "enum", "boolean"}
             if field["type"] not in valid_types:
                 return False
+
+        # Validate optional groups if present
+        if "groups" in schema:
+            if not isinstance(schema["groups"], list):
+                return False
+
+            for group in schema["groups"]:
+                if not isinstance(group, dict):
+                    return False
+
+                if "name" not in group or not isinstance(group["name"], str):
+                    return False
+
+                if "fields" not in group or not isinstance(group["fields"], list):
+                    return False
+
+                for field_name in group["fields"]:
+                    if not isinstance(field_name, str):
+                        return False
 
         return True
 

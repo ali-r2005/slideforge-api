@@ -80,5 +80,32 @@
       "label": "Contact Email",
       "description": "Email for event contact"
     }
+  ],
+  "groups": [
+    {
+      "name": "Event Details",
+      "description": "Basic information about the event",
+      "fields": ["event_name", "event_type", "location"]
+    },
+    {
+      "name": "Schedule",
+      "description": "Event date and duration",
+      "fields": ["start_date", "end_date"]
+    },
+    {
+      "name": "Attendance & Budget",
+      "description": "Expected participants and financial details",
+      "fields": ["expected_attendees", "total_budget"]
+    },
+    {
+      "name": "Catering",
+      "description": "Food and dietary requirements",
+      "fields": ["has_catering", "dietary_requirements"]
+    },
+    {
+      "name": "Contact Information",
+      "description": "Primary contact details",
+      "fields": ["contact_email"]
+    }
   ]
 }
