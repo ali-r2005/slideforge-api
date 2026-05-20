@@ -12,6 +12,9 @@ from app.schemas.generate_schema import GeneratePresentationRequest, UpdatePrese
 from app.services.ai_service import generate_ai_content
 from app.utils.ai_validation import AIResponseValidationError
 from app.utils.template_metadata import load_template_metadata
+from app.utils.schema_loader import load_schema, has_schema
+from app.utils.schema_validator import SchemaValidator
+from app.utils.enhanced_prompt_builder import build_enhanced_prompt
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +57,28 @@ def get_templates():
         "data": templates
     }
 
+@router.get("/schema/{template_name}")
+def get_schema(template_name: str):
+    """
+    Get the form schema for a template, if it exists.
+    Returns empty object if template has no schema (graceful fallback).
+    """
+    schema = load_schema(template_name)
+
+    if schema is None:
+        # No schema found - return empty object (graceful fallback)
+        return {
+            "success": True,
+            "data": None,
+            "has_schema": False
+        }
+
+    return {
+        "success": True,
+        "data": schema,
+        "has_schema": True
+    }
+
 @router.post("/generate-ppt")
 async def generate_ppt(request: GeneratePresentationRequest):
     template_name = f"{request.template_name}.pptx"
@@ -78,6 +103,27 @@ async def generate_ppt(request: GeneratePresentationRequest):
     # Load template metadata
     template_metadata = load_template_metadata(request.template_name, str(templates_dir))
 
+    # Validate form_data if provided
+    if request.form_data:
+        schema = load_schema(request.template_name)
+        if schema:
+            is_valid, errors = SchemaValidator.validate(request.form_data, schema)
+            if not is_valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Form validation failed: {'; '.join(errors)}"
+                )
+            # Filter out optional empty fields
+            request.form_data = SchemaValidator.filter_optional_fields(request.form_data, schema)
+            logging.info(f"Form data validated successfully: {request.form_data}")
+
+    # Check that either prompt or form_data is provided
+    if not request.prompt and not request.form_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'prompt' or 'form_data' must be provided"
+        )
+
     metadata = extract_ppt_metadata(template_path=str(template_path))
     fields = [
         placeholder
@@ -86,9 +132,16 @@ async def generate_ppt(request: GeneratePresentationRequest):
     ]
     logging.info(f"Fields: {fields}")
 
+    # Build enhanced prompt if form_data exists
+    user_prompt = request.prompt or ""
+    if request.form_data:
+        schema = load_schema(request.template_name)
+        user_prompt = build_enhanced_prompt(user_prompt, request.form_data, schema)
+        logging.info(f"Enhanced prompt built from form_data")
+
     try:
         ai_response = await generate_ai_content(
-            user_prompt=request.prompt,
+            user_prompt=user_prompt,
             fields=fields,
             template_metadata=template_metadata
         )

@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
 
 
 class GeneratePresentationRequest(BaseModel):
@@ -7,9 +8,16 @@ class GeneratePresentationRequest(BaseModel):
         max_length=100
     )
 
-    prompt: str = Field(
+    prompt: Optional[str] = Field(
+        default=None,
         min_length=5,
-        max_length=5000
+        max_length=5000,
+        description="User prompt (optional if form_data is provided)"
+    )
+
+    form_data: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Structured form data from schema (optional)"
     )
 
 class UpdatePresentationRequest(BaseModel):

@@ -1,0 +1,54 @@
+{
+  "template_name": "template3",
+  "description": "Destination showcase template with optional form data",
+  "fields": [
+    {
+      "name": "destination_name",
+      "type": "enum",
+      "required": true,
+      "label": "Destination",
+      "description": "Select the destination for the event",
+      "values": ["Marrakech", "Tangier", "Fez", "Casablanca", "Rabat"]
+    },
+    {
+      "name": "event_budget",
+      "type": "number",
+      "required": false,
+      "label": "Budget (USD)",
+      "description": "Estimated budget for the event",
+      "min": 1000,
+      "max": 100000
+    },
+    {
+      "name": "event_date_range_start",
+      "type": "date",
+      "required": false,
+      "label": "Event Start Date",
+      "description": "When the event begins"
+    },
+    {
+      "name": "event_date_range_end",
+      "type": "date",
+      "required": false,
+      "label": "Event End Date",
+      "description": "When the event ends"
+    },
+    {
+      "name": "attendee_count",
+      "type": "number",
+      "required": false,
+      "label": "Expected Attendees",
+      "description": "Number of participants expected",
+      "min": 1,
+      "max": 500
+    },
+    {
+      "name": "special_requirements",
+      "type": "textarea",
+      "required": false,
+      "label": "Special Requirements",
+      "description": "Any special needs or constraints",
+      "max_length": 500
+    }
+  ]
+}
