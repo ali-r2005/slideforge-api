@@ -15,7 +15,9 @@ RULES:
 - Bullet-style wording is preferred.
 - For 'image_logo' types: return ONLY the primary domain name (e.g., tesla.com).
 - For 'image_topic' types: return a 2-4 word search query for a high-quality stock photo (e.g., 'modern boardroom', 'team high five', 'tangier morocco').
-- For 'table' types: return a LIST of LISTS. Each inner list represents a row and must have exactly the number of columns requested. Do not include the header row.
+- For 'table' types: return a LIST of OBJECTS where each object uses column names as keys.
+  Example: [{"Name": "John", "Email": "john@example.com"}, {"Name": "Jane", "Email": "jane@example.com"}]
+  Use the exact column names provided in the field description.
 - For fields with 'Paragraphs: 2+': return a LIST of strings, one per paragraph. Example: ["First paragraph text.", "Second paragraph text."]
   Each paragraph should be 1-2 sentences maximum.
 
@@ -36,6 +38,7 @@ def build_user_prompt(user_prompt: str, fields: list[dict], template_metadata: d
                 f"- Max chars: {field['max_chars']}",
                 f"- Paragraphs: {field.get('paragraphs', 1)}" if field.get('paragraphs', 1) > 1 else None,
                 f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else None,
+                f"- Column headers: {format_table_columns_for_prompt(field.get('column_headers', []))}" if field['type'] == 'table' and field.get('column_headers') else None,
                 get_field_instruction_section(template_metadata, field['placeholder'])
             ]))
             for field in fields
@@ -84,6 +87,13 @@ def get_field_instruction_section(template_metadata: dict, field_name: str) -> s
         return f"- Special instructions: {field_meta}"
 
     return None
+
+
+def format_table_columns_for_prompt(column_headers: list) -> str:
+    """Formats column headers for AI prompt."""
+    if not column_headers:
+        return ""
+    return ", ".join(f"'{h}'" for h in column_headers)
 
 def build_correction_prompt(original_prompt: str, invalid_content: str, validation_error: str):
     return f"""

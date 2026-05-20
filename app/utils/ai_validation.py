@@ -45,11 +45,26 @@ def validate_ai_response(data: dict, fields: list[dict], trim_long_fields: bool 
             # Further validation for tables
             if field_type == "table":
                 expected_cols = field.get("columns", 0)
-                for row_idx, row in enumerate(value):
-                    if not isinstance(row, list):
-                        errors.append(f"Row {row_idx} of {name} must be a list")
-                    elif expected_cols > 0 and len(row) != expected_cols:
-                        errors.append(f"Row {row_idx} of {name} must have exactly {expected_cols} columns")
+                column_headers = field.get("column_headers", [])
+
+                # Tables can be either list of lists or list of objects
+                if value and isinstance(value[0], dict):
+                    # Object format - validate keys match headers
+                    for row_idx, row in enumerate(value):
+                        if not isinstance(row, dict):
+                            errors.append(f"Row {row_idx} of {name} must be an object (dict)")
+                        elif column_headers:
+                            # Check if all required headers are present
+                            for header in column_headers:
+                                if header not in row:
+                                    errors.append(f"Row {row_idx} of {name} missing required field: {header}")
+                elif value and isinstance(value[0], list):
+                    # List format - validate column count
+                    for row_idx, row in enumerate(value):
+                        if not isinstance(row, list):
+                            errors.append(f"Row {row_idx} of {name} must be a list")
+                        elif expected_cols > 0 and len(row) != expected_cols:
+                            errors.append(f"Row {row_idx} of {name} must have exactly {expected_cols} columns")
 
             # Validation for multi-paragraph fields
             elif field_type == "paragraph" and paragraphs_count > 1:

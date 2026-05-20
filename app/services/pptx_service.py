@@ -83,12 +83,17 @@ def extract_ppt_metadata(template_path: str):
                         placeholder_name = metadata["name"]
                         placeholder_type = infer_placeholder_type(placeholder_name)
                         if placeholder_type == "table":
+                            # Extract header names from the first row
+                            table = shape.table
+                            column_headers = extract_table_headers(table)
+
                             slide_info["placeholders"].append({
                                 "placeholder": placeholder_name,
                                 "slide_number": slide_index + 1,
                                 "shape_index": shape_index,
                                 "type": "table",
-                                "columns": len(shape.table.columns),
+                                "columns": len(table.columns),
+                                "column_headers": column_headers,
                                 "max_chars": 500,
                                 "paragraphs": 1
                             })
@@ -307,9 +312,15 @@ def generate_presentation(
                     matches = re.findall(pattern, alt_text)
                     for match in matches:
                         if "table:" in match.lower():
-                            table_data = replacements.get(match)
+                            # Extract just the table name (without metadata)
+                            metadata = extract_placeholder_metadata(match)
+                            table_name = metadata["name"]
+
+                            table_data = replacements.get(table_name)
                             if table_data and isinstance(table_data, list):
-                                fill_table(shape.table, table_data)
+                                # Extract column headers from the table
+                                column_headers = extract_table_headers(shape.table)
+                                fill_table(shape.table, table_data, column_headers=column_headers)
         
         # Apply custom map highlighting and pointer logic
         apply_map_logic(slide, replacements)
@@ -326,40 +337,114 @@ def generate_presentation(
     cleanup_temp_images()
     return output_path
 
-def fill_table(table, data):
+def extract_table_headers(table):
+    """
+    Extracts header names from the first row of a table.
+    Returns a list of header names.
+    """
+    if len(table.rows) < 1:
+        return []
+
+    headers = []
+    header_row = table.rows[0]
+
+    for cell in header_row.cells:
+        # Extract text from the cell
+        cell_text = cell.text.strip()
+        headers.append(cell_text)
+
+    return headers
+
+
+def extract_template_row_formatting(table):
+    """
+    Extracts formatting information from the template row (second row, index 1).
+    Returns a list of formatting dicts for each column.
+    """
+    if len(table.rows) < 2:
+        return {}
+
+    template_row = table.rows[1]
+    formatting = {}
+
+    for col_idx, cell in enumerate(template_row.cells):
+        if cell.text_frame.paragraphs:
+            para = cell.text_frame.paragraphs[0]
+            if para.runs:
+                run = para.runs[0]
+                formatting[col_idx] = {
+                    "font_name": run.font.name,
+                    "font_size": run.font.size,
+                    "font_bold": run.font.bold,
+                    "font_italic": run.font.italic,
+                    "font_underline": run.font.underline,
+                    "alignment": para.alignment
+                }
+
+    return formatting
+
+
+def fill_table(table, data, column_headers=None):
     """
     Fills a PowerPoint table with data, adding rows as needed and preserving styles.
-    Assumes row 1 is header and row 2 is template.
+
+    Supports two data formats:
+    1. List of dicts: [{"Name": "John", "Email": "john@example.com"}, ...]
+    2. List of lists: [["John", "john@example.com"], ...]
+
+    Assumes row 0 is header and row 1 is template row.
     """
     if not data:
         return
 
-    # 1. Determine number of existing data rows (excluding header)
-    # We assume the user has 1 header row and at least 1 template row.
-    header_rows = 1
-    
-    # 2. Fill the first data row (Template row)
-    first_row_data = data[0]
-    for col_idx, cell_value in enumerate(first_row_data):
-        if col_idx < len(table.columns):
-            table.cell(header_rows, col_idx).text = str(cell_value)
-            # You might want to re-apply style here if .text wipes it
-            # But usually it's better to modify the run
-    
-    # 3. Add and fill additional rows
-    for row_data in data[1:]:
-        new_row = add_row_to_table(table)
-        for col_idx, cell_value in enumerate(row_data):
-            if col_idx < len(table.columns):
-                new_cell = new_row.cells[col_idx]
-                new_cell.text = str(cell_value)
-                
-                # Copy style from template row (row 1)
-                try:
-                    template_cell = table.cell(header_rows, col_idx)
-                    copy_cell_style(template_cell, new_cell)
-                except Exception as e:
-                    logging.error(f"Error copying style: {e}")
+    header_rows = 1  # Header is at row 0, template is at row 1
+
+    # Determine data format and convert if needed
+    if data and isinstance(data[0], dict):
+        # Data is list of objects
+        rows_to_fill = data
+        is_object_format = True
+    elif data and isinstance(data[0], list):
+        # Data is list of lists
+        rows_to_fill = data
+        is_object_format = False
+    else:
+        return
+
+    # Fill each row
+    for row_idx, row_data in enumerate(rows_to_fill):
+        if row_idx == 0:
+            # Use the template row (row 1) for first data
+            current_row = table.rows[header_rows]
+        else:
+            # Add new row - automatically copies template formatting via XML
+            current_row = add_row_to_table(table)
+
+        # Fill cells in the row
+        for col_idx in range(len(table.columns)):
+            if col_idx >= len(table.columns):
+                break
+
+            cell = current_row.cells[col_idx]
+
+            # Get the cell value based on data format
+            if is_object_format:
+                # Get value from dict using header name
+                if column_headers and col_idx < len(column_headers):
+                    header_name = column_headers[col_idx]
+                    cell_value = row_data.get(header_name, "")
+                else:
+                    cell_value = ""
+            else:
+                # Get value from list
+                if col_idx < len(row_data):
+                    cell_value = row_data[col_idx]
+                else:
+                    cell_value = ""
+
+            # IMPORTANT: Replace text in existing runs to preserve formatting
+            # Do NOT use cell.text = ... as it clears all formatting
+            set_cell_text_preserve_formatting(cell, str(cell_value))
 
 def add_row_to_table(table):
     """
@@ -381,6 +466,62 @@ def add_row_to_table(table):
     
     # Return the newly created row object
     return table.rows[len(table.rows) - 1]
+
+def set_cell_text_preserve_formatting(cell, text):
+    """
+    Sets cell text while preserving all existing formatting.
+
+    IMPORTANT: Do NOT use cell.text = ... because it clears formatting.
+    Instead, replace text in the existing runs while keeping their properties.
+    """
+    if not cell.text_frame.paragraphs:
+        return
+
+    text_frame = cell.text_frame
+
+    # Clear all existing text but preserve the run objects and their formatting
+    for paragraph in text_frame.paragraphs:
+        if paragraph.runs:
+            # Set text to the first run, clear the rest
+            for run_idx, run in enumerate(paragraph.runs):
+                if run_idx == 0:
+                    run.text = text
+                else:
+                    run.text = ""
+        else:
+            # No runs exist, create one
+            # This shouldn't happen in normal cases, but handle it
+            run = paragraph.add_run()
+            run.text = text
+
+
+def apply_cell_formatting(cell, formatting):
+    """
+    Applies formatting to a cell based on a formatting dict.
+    """
+    if not cell.text_frame.paragraphs:
+        return
+
+    para = cell.text_frame.paragraphs[0]
+
+    if para.runs:
+        run = para.runs[0]
+        font = run.font
+
+        if formatting.get("font_name"):
+            font.name = formatting["font_name"]
+        if formatting.get("font_size"):
+            font.size = formatting["font_size"]
+        if formatting.get("font_bold") is not None:
+            font.bold = formatting["font_bold"]
+        if formatting.get("font_italic") is not None:
+            font.italic = formatting["font_italic"]
+        if formatting.get("font_underline") is not None:
+            font.underline = formatting["font_underline"]
+
+    if formatting.get("alignment") is not None:
+        para.alignment = formatting["alignment"]
+
 
 def copy_cell_style(source_cell, target_cell):
     """
