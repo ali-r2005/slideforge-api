@@ -20,6 +20,7 @@ RULES:
   Use the exact column names provided in the field description.
 - For fields with 'Paragraphs: 2+': return a LIST of strings, one per paragraph. Example: ["First paragraph text.", "Second paragraph text."]
   Each paragraph should be 1-2 sentences maximum.
+- When you see requests for arrays (marked with "Return as:" in the prompt), ALWAYS return the field as an array, even if there's only one item.
 
 The JSON keys MUST exactly match the requested fields.
 """
