@@ -110,6 +110,32 @@ class SchemaValidator:
                     else:
                         return f"Field '{field_name}' must be a boolean"
 
+            elif field_type == "program_table":
+                if not isinstance(value, list):
+                    return f"Field '{field_name}' must be an array"
+
+                expected_columns = set(field.get("columns", []))
+
+                for idx, row in enumerate(value):
+                    if not isinstance(row, dict):
+                        return f"Field '{field_name}' row {idx} must be an object"
+
+                    if "date" not in row:
+                        return f"Field '{field_name}' row {idx} missing 'date' key"
+
+                    # Validate date format
+                    try:
+                        datetime.strptime(row["date"], "%Y-%m-%d")
+                    except (ValueError, TypeError):
+                        return f"Field '{field_name}' row {idx} date must be valid ISO format (YYYY-MM-DD)"
+
+                    # Check all columns exist and are strings
+                    for col_key in expected_columns:
+                        if col_key not in row:
+                            return f"Field '{field_name}' row {idx} missing column '{col_key}'"
+                        if not isinstance(row[col_key], str):
+                            return f"Field '{field_name}' row {idx} column '{col_key}' must be text"
+
         except Exception as e:
             logger.error(f"Error validating field {field_name}: {e}")
             return f"Error validating field '{field_name}': {str(e)}"

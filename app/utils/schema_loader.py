@@ -82,9 +82,32 @@ class SchemaLoader:
                 return False
 
             # Validate field type
-            valid_types = {"text", "textarea", "number", "email", "date", "enum", "boolean"}
+            valid_types = {"text", "textarea", "number", "email", "date", "enum", "boolean", "program_table"}
             if field["type"] not in valid_types:
                 return False
+
+        # Validate program_table specific requirements
+        all_field_names = {f["name"] for f in schema["fields"]}
+        for field in schema["fields"]:
+            if field["type"] == "program_table":
+                # program_table requires date_range fields and columns
+                if "date_range_start_field" not in field or "date_range_end_field" not in field:
+                    return False
+                if "columns" not in field or not isinstance(field["columns"], list):
+                    return False
+                if len(field["columns"]) == 0:
+                    return False
+
+                # Validate columns are strings
+                for col in field["columns"]:
+                    if not isinstance(col, str):
+                        return False
+
+                # Validate referenced date fields exist
+                if field["date_range_start_field"] not in all_field_names:
+                    return False
+                if field["date_range_end_field"] not in all_field_names:
+                    return False
 
         # Validate optional groups if present
         if "groups" in schema:

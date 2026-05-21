@@ -59,13 +59,15 @@ Use these parameters to ensure consistency in the generated content."""
         """
         lines = []
 
-        # Create a mapping of field names to labels for better readability
+        # Create a mapping of field names to labels and types for better readability
         field_labels = {}
+        field_types = {}
         if schema:
             for field in schema.get("fields", []):
                 field_name = field.get("name")
                 label = field.get("label", field_name)
                 field_labels[field_name] = label
+                field_types[field_name] = field.get("type")
 
         # Build parameter lines
         for key, value in sorted(form_data.items()):
@@ -75,10 +77,23 @@ Use these parameters to ensure consistency in the generated content."""
             # Get label if available
             label = field_labels.get(key, EnhancedPromptBuilder._format_label(key))
 
-            # Format value based on type
-            formatted_value = EnhancedPromptBuilder._format_value(value)
-
-            lines.append(f"- {label}: {formatted_value}")
+            # Special handling for program_table type
+            field_type = field_types.get(key)
+            if field_type == "program_table" and isinstance(value, list):
+                lines.append(f"- {label}:")
+                for row in value:
+                    date = row.get("date", "Unknown Date")
+                    lines.append(f"  Date: {date}")
+                    # Iterate through columns (all keys except 'date')
+                    for col_key, col_value in row.items():
+                        if col_key != "date" and col_value:
+                            # Format column key as label: "morning" → "Morning"
+                            col_label = col_key.replace("_", " ").title()
+                            lines.append(f"    {col_label}: {col_value}")
+            else:
+                # Format value based on type
+                formatted_value = EnhancedPromptBuilder._format_value(value)
+                lines.append(f"- {label}: {formatted_value}")
 
         return "\n".join(lines) if lines else "(No parameters provided)"
 
