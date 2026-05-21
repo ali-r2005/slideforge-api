@@ -56,7 +56,13 @@
       "description": "Plan activities for each time slot of each day",
       "date_range_start_field": "event_start_date",
       "date_range_end_field": "event_end_date",
-      "columns": ["Matinée", "Midi", "Après-midi", "Soir"]
+      "columns": ["Matinée", "Midi", "Après-midi", "Soir"],
+      "cell_structure": {
+        "parts": ["context", "team_building", "agency_offer"],
+        "ai_generates": ["context"],
+        "user_provides": ["context", "agency_offer"],
+        "team_building_db": true
+      }
     }
   ],
   "groups": [

@@ -109,6 +109,35 @@ class SchemaLoader:
                 if field["date_range_end_field"] not in all_field_names:
                     return False
 
+                # Validate optional cell_structure if present
+                if "cell_structure" in field:
+                    cell_struct = field["cell_structure"]
+                    if not isinstance(cell_struct, dict):
+                        return False
+
+                    # Validate parts array
+                    if "parts" not in cell_struct or not isinstance(cell_struct["parts"], list):
+                        return False
+
+                    valid_parts = {"context", "team_building", "agency_offer"}
+                    for part in cell_struct["parts"]:
+                        if not isinstance(part, str) or part not in valid_parts:
+                            return False
+
+                    # Validate optional ai_generates and user_provides arrays
+                    for key in ["ai_generates", "user_provides"]:
+                        if key in cell_struct:
+                            if not isinstance(cell_struct[key], list):
+                                return False
+                            for item in cell_struct[key]:
+                                if not isinstance(item, str) or item not in valid_parts:
+                                    return False
+
+                    # Validate optional team_building_db flag
+                    if "team_building_db" in cell_struct:
+                        if not isinstance(cell_struct["team_building_db"], bool):
+                            return False
+
         # Validate optional groups if present
         if "groups" in schema:
             if not isinstance(schema["groups"], list):

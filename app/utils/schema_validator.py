@@ -115,6 +115,7 @@ class SchemaValidator:
                     return f"Field '{field_name}' must be an array"
 
                 expected_columns = set(field.get("columns", []))
+                has_cell_structure = "cell_structure" in field
 
                 for idx, row in enumerate(value):
                     if not isinstance(row, dict):
@@ -129,12 +130,44 @@ class SchemaValidator:
                     except (ValueError, TypeError):
                         return f"Field '{field_name}' row {idx} date must be valid ISO format (YYYY-MM-DD)"
 
-                    # Check all columns exist and are strings
+                    # Check all columns exist
                     for col_key in expected_columns:
                         if col_key not in row:
                             return f"Field '{field_name}' row {idx} missing column '{col_key}'"
-                        if not isinstance(row[col_key], str):
-                            return f"Field '{field_name}' row {idx} column '{col_key}' must be text"
+
+                        col_value = row[col_key]
+
+                        # Handle new cell_structure format (nested object with context, team_building, agency_offer)
+                        if has_cell_structure:
+                            if isinstance(col_value, dict):
+                                # Validate context if present - must be array of strings
+                                if "context" in col_value:
+                                    if not isinstance(col_value["context"], list):
+                                        return f"Field '{field_name}' row {idx} column '{col_key}' context must be an array"
+                                    if not all(isinstance(item, str) for item in col_value["context"]):
+                                        return f"Field '{field_name}' row {idx} column '{col_key}' context items must be strings"
+
+                                # Validate team_building if present - must be object or null
+                                if "team_building" in col_value:
+                                    tb = col_value["team_building"]
+                                    if tb is not None and not isinstance(tb, dict):
+                                        return f"Field '{field_name}' row {idx} column '{col_key}' team_building must be object or null"
+
+                                # Validate agency_offer if present - must be array of strings
+                                if "agency_offer" in col_value:
+                                    if not isinstance(col_value["agency_offer"], list):
+                                        return f"Field '{field_name}' row {idx} column '{col_key}' agency_offer must be an array"
+                                    if not all(isinstance(item, str) for item in col_value["agency_offer"]):
+                                        return f"Field '{field_name}' row {idx} column '{col_key}' agency_offer items must be strings"
+                            elif isinstance(col_value, str):
+                                # Support legacy simple string cells for backward compatibility
+                                pass
+                            else:
+                                return f"Field '{field_name}' row {idx} column '{col_key}' must be object or string"
+                        else:
+                            # Legacy format - simple string values
+                            if not isinstance(col_value, str):
+                                return f"Field '{field_name}' row {idx} column '{col_key}' must be text"
 
         except Exception as e:
             logger.error(f"Error validating field {field_name}: {e}")

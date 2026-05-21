@@ -37,6 +37,14 @@ class EnhancedPromptBuilder:
             form_data, schema
         )
 
+        # Check if form data contains program_table with cell_structure
+        has_program_table_with_structure = False
+        if schema:
+            for field in schema.get("fields", []):
+                if field.get("type") == "program_table" and "cell_structure" in field:
+                    has_program_table_with_structure = True
+                    break
+
         # Combine into final prompt
         enhanced_prompt = f"""{user_prompt}
 
@@ -46,6 +54,16 @@ Structured Parameters:
 IMPORTANT: Treat the above Structured Parameters as strict constraints.
 If the user request conflicts with any parameter, prioritize the parameter values.
 Use these parameters to ensure consistency in the generated content."""
+
+        # Add special instructions for program table with arrays
+        if has_program_table_with_structure:
+            enhanced_prompt += """\n
+ARRAY RESPONSE FORMAT FOR PROGRAM TABLE:
+- When you see "Context Request:" or "Agency Offers Request:", respond with an array format
+- CONTEXT: Return as JSON array: ["paragraph 1", "paragraph 2", "paragraph 3"]
+- AGENCY OFFERS: Return as JSON array: ["offer 1", "offer 2", "offer 3"]
+- Each array item becomes a separate paragraph in the final document
+- Make sure all arrays are properly formatted as valid JSON"""
 
         return enhanced_prompt.strip()
 
@@ -84,11 +102,41 @@ Use these parameters to ensure consistency in the generated content."""
                 for row in value:
                     date = row.get("date", "Unknown Date")
                     lines.append(f"  Date: {date}")
+
                     # Iterate through columns (all keys except 'date')
                     for col_key, col_value in row.items():
-                        if col_key != "date" and col_value:
-                            # Format column key as label: "morning" → "Morning"
-                            col_label = col_key.replace("_", " ").title()
+                        if col_key == "date" or not col_value:
+                            continue
+
+                        col_label = col_key.replace("_", " ").title()
+
+                        # Handle new cell_structure format (nested object)
+                        if isinstance(col_value, dict):
+                            lines.append(f"    {col_label}:")
+
+                            # Context part - user prompt for AI
+                            if col_value.get("context_prompt"):
+                                context_prompt = col_value["context_prompt"]
+                                lines.append(f"      Context Request: {context_prompt}")
+                                lines.append(f"      → Return as: ['paragraph 1', 'paragraph 2', ...]")
+
+                            # Team building part - selected activity
+                            if col_value.get("team_building"):
+                                tb = col_value["team_building"]
+                                tb_name = tb.get("name", "Unknown")
+                                tb_slogan = tb.get("slogan", "")
+                                if tb_slogan:
+                                    lines.append(f"      Team Building: {tb_name} - {tb_slogan}")
+                                else:
+                                    lines.append(f"      Team Building: {tb_name}")
+
+                            # Agency offer part - user specified offers
+                            if col_value.get("agency_offer_request"):
+                                agency_request = col_value["agency_offer_request"]
+                                lines.append(f"      Agency Offers Request: {agency_request}")
+                                lines.append(f"      → Return as: ['offer 1', 'offer 2', ...]")
+                        else:
+                            # Legacy format - simple string value
                             lines.append(f"    {col_label}: {col_value}")
             else:
                 # Format value based on type
