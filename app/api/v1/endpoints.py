@@ -96,6 +96,7 @@ async def generate_ppt(request: GeneratePresentationRequest):
     logging.info(f"Received request to generate presentation using template: {template_name}")
     templates_dir = Path("templates").resolve()
     template_path = (templates_dir / template_name).resolve()
+    schema = load_schema(request.template_name) if has_schema(request.template_name) else None
 
     try:
         template_path.relative_to(templates_dir)
@@ -116,7 +117,6 @@ async def generate_ppt(request: GeneratePresentationRequest):
 
     # Validate form_data if provided
     if request.form_data:
-        schema = load_schema(request.template_name)
         if schema:
             is_valid, errors = SchemaValidator.validate(request.form_data, schema)
             if not is_valid:
@@ -146,7 +146,6 @@ async def generate_ppt(request: GeneratePresentationRequest):
     # Build enhanced prompt if form_data exists
     user_prompt = request.prompt or ""
     if request.form_data:
-        schema = load_schema(request.template_name)
         user_prompt = build_enhanced_prompt(
             user_prompt,
             request.form_data,
@@ -155,6 +154,8 @@ async def generate_ppt(request: GeneratePresentationRequest):
             template_metadata=template_metadata
         )
         logging.info(f"Enhanced prompt built from form_data")
+    logging.info(f"Final user prompt: {user_prompt}")
+    logging.info(f"Template metadata: {template_metadata}")
 
     try:
         ai_response = await generate_ai_content(

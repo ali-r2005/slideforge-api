@@ -14,9 +14,9 @@ class EnhancedPromptBuilder:
     def build_prompt_with_form_data(
         user_prompt: str,
         form_data: Dict[str, Any],
-        schema: Optional[Dict[str, Any]] = None,
-        fields: Optional[list] = None,
-        template_metadata: Optional[Dict[str, Any]] = None
+        schema: Dict[str, Any] | None = None,
+        fields: list | None = None,
+        template_metadata: Dict[str, Any] | None = None
     ) -> str:
         """
         Combines user prompt with structured form data into a single prompt.
@@ -59,8 +59,8 @@ Use these parameters to ensure consistency in the generated content."""
 
     @staticmethod
     def _build_field_specific_formatting(
-        fields: Optional[list] = None,
-        template_metadata: Optional[Dict[str, Any]] = None
+        fields: list | None = None,
+        template_metadata: Dict[str, Any] | None = None
     ) -> str:
         """
         Builds formatting instructions only for fields that have conventions defined.
@@ -100,7 +100,7 @@ Use these parameters to ensure consistency in the generated content."""
     @staticmethod
     def _build_parameters_section(
         form_data: Dict[str, Any],
-        schema: Optional[Dict[str, Any]] = None
+        schema: Dict[str, Any] | None = None
     ) -> str:
         """
         Builds the structured parameters section of the prompt.
@@ -207,10 +207,10 @@ Use these parameters to ensure consistency in the generated content."""
 
 def build_enhanced_prompt(
     user_prompt: str,
-    form_data: Optional[Dict[str, Any]] = None,
-    schema: Optional[Dict[str, Any]] = None,
-    fields: Optional[list] = None,
-    template_metadata: Optional[Dict[str, Any]] = None
+    form_data: Dict[str, Any] | None = None,
+    schema: Dict[str, Any] | None = None,
+    fields: list | None = None,
+    template_metadata: Dict[str, Any] | None = None
 ) -> str:
     """
     Convenience function to build an enhanced prompt.
