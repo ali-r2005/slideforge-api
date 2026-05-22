@@ -1,8 +1,11 @@
 from pptx import Presentation
+from pptx.util import Pt
+from pptx.dml.color import RGBColor
 import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Dict, Any, Optional
 from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS, extract_placeholder_metadata
 from app.utils.map_logic import apply_map_logic
 from app.utils.pptx_utils import get_shape_alt_text
@@ -127,15 +130,114 @@ def copy_run_formatting(source_run, target_run):
             pass
 
 
-def replace_text_preserve_formatting(shape, placeholder: str, value):
+def apply_formatted_text(paragraph, text: str, parser) -> None:
+    """
+    Apply text with parsed marker formatting to a PowerPoint paragraph.
+
+    Args:
+        paragraph: The paragraph to add formatted text to
+        text: Text potentially containing markers like $$marker$$content$$marker$$
+        parser: MarkerParser instance with field-specific conventions
+    """
+    runs_data = parser.get_pptx_runs(text)
+
+    # Clear existing runs
+    for run in list(paragraph.runs):
+        run.text = ""
+
+    for run_data in runs_data:
+        run = paragraph.add_run()
+        run.text = run_data["text"]
+
+        # Apply color formatting
+        if run_data.get("color"):
+            try:
+                r = int(run_data["color"][0:2], 16)
+                g = int(run_data["color"][2:4], 16)
+                b = int(run_data["color"][4:6], 16)
+                run.font.color.rgb = RGBColor(r, g, b)
+            except (ValueError, TypeError):
+                pass
+
+        # Apply bold
+        if run_data.get("bold"):
+            run.font.bold = True
+
+        # Apply italic
+        if run_data.get("italic"):
+            run.font.italic = True
+
+        # Apply font size
+        if run_data.get("font_size"):
+            try:
+                run.font.size = Pt(int(run_data["font_size"]))
+            except (ValueError, TypeError):
+                pass
+
+
+def replace_text_preserve_formatting(
+    shape,
+    placeholder: str,
+    value,
+    field_placeholder: Optional[str] = None,
+    template_metadata: Optional[Dict[str, Any]] = None
+):
     """
     Replaces placeholder text in a shape while preserving the original formatting.
-    Handles both single text (str) and multiple paragraphs (list).
+    Optionally applies field-specific formatting conventions based on markers.
+
+    Args:
+        shape: The PowerPoint shape containing the placeholder
+        placeholder: The placeholder text to find and replace
+        value: The replacement value (str or list of str)
+        field_placeholder: The field name for marker parsing (e.g., "program_schedule")
+        template_metadata: Template metadata with formatting_conventions
     """
     if not hasattr(shape, "text_frame"):
         return False
 
     text_frame = shape.text_frame
+
+    # If field context provided, use marker-based formatting
+    if field_placeholder and template_metadata:
+        from app.utils.marker_parser import MarkerParser
+
+        parser = MarkerParser.for_field(template_metadata, field_placeholder)
+
+        # Handle list of values
+        if isinstance(value, list):
+            # Find which paragraph contains the placeholder
+            placeholder_para_idx = None
+
+            for para_idx, paragraph in enumerate(text_frame.paragraphs):
+                if placeholder in paragraph.text:
+                    placeholder_para_idx = para_idx
+                    break
+
+            if placeholder_para_idx is not None:
+                template_paragraph = text_frame.paragraphs[placeholder_para_idx]
+
+                # Add each value with formatting
+                for i, val in enumerate(value):
+                    if i == 0:
+                        para = template_paragraph
+                    else:
+                        para = text_frame.add_paragraph()
+
+                    # Apply formatted text
+                    apply_formatted_text(para, str(val), parser)
+
+                return True
+        else:
+            # Handle single value
+            for paragraph in text_frame.paragraphs:
+                if placeholder in paragraph.text:
+                    # Replace placeholder in paragraph
+                    paragraph.text = ""
+                    apply_formatted_text(paragraph, str(value), parser)
+                    return True
+
+        return False
 
     # Handle list of paragraphs (multi-paragraph values)
     if isinstance(value, list) and len(text_frame.paragraphs) > 0:
@@ -240,7 +342,8 @@ def replace_text_preserve_formatting(shape, placeholder: str, value):
 def generate_presentation(
     template_path: str,
     output_path: str,
-    replacements: dict
+    replacements: dict,
+    template_metadata: Optional[Dict[str, Any]] = None
 ):
 
     presentation = Presentation(template_path)
@@ -292,6 +395,9 @@ def generate_presentation(
 
                     if match:
                         actual_placeholder = match.group(0)
+                        # Extract field placeholder name (without :metadata)
+                        field_placeholder = key.split(":")[0]
+
                         # Handle different value types
                         if isinstance(value, list):
                             # If it's a table (list of lists), skip - handled separately
@@ -300,9 +406,21 @@ def generate_presentation(
                             # For paragraph arrays, pass the list directly
                             # For bullet lists (list of strings), join them
                             # The function will handle both cases
-                            replace_text_preserve_formatting(shape, actual_placeholder, value)
+                            replace_text_preserve_formatting(
+                                shape,
+                                actual_placeholder,
+                                value,
+                                field_placeholder=field_placeholder,
+                                template_metadata=template_metadata
+                            )
                         else:
-                            replace_text_preserve_formatting(shape, actual_placeholder, str(value))
+                            replace_text_preserve_formatting(
+                                shape,
+                                actual_placeholder,
+                                str(value),
+                                field_placeholder=field_placeholder,
+                                template_metadata=template_metadata
+                            )
 
             
             # 3. Check for Tables

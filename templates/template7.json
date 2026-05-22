@@ -1,0 +1,61 @@
+{
+  "name": "template7",
+  "description": "Event program schedule template with structured program planning",
+  "system_instructions": "Generate engaging and practical event program content that highlights activities, locations, and team-building opportunities. Be concise and specific.",
+  "tone": "professional and clear",
+
+  "field_instructions": {
+    "program_schedule": {
+      "label": "Program Schedule",
+      "description": "Table with activities for each time slot across event days",
+      "formatting_conventions": [
+        {
+          "name": "activity_name",
+          "marker": "$$activity$$",
+          "description": "Activity or session names",
+          "pptx_style": {
+            "color": "FF6B35",
+            "bold": true
+          },
+          "instruction": "When mentioning activity or session names, wrap with $$activity$$Activity Name$$activity$$"
+        },
+        {
+          "name": "location",
+          "marker": "$$location$$",
+          "description": "Specific locations or venues",
+          "pptx_style": {
+            "color": "0066CC",
+            "italic": true
+          },
+          "instruction": "When mentioning specific locations, venues, or rooms, wrap with $$location$$Location Name$$location$$"
+        },
+        {
+          "name": "team_building",
+          "marker": "$$team$$",
+          "description": "Team building activity names",
+          "pptx_style": {
+            "color": "228B22",
+            "bold": true,
+            "italic": true
+          },
+          "instruction": "When describing team building activities or challenges, wrap with $$team$$Activity Name$$team$$"
+        },
+        {
+          "name": "duration",
+          "marker": "$$time$$",
+          "description": "Time duration or schedule timing",
+          "pptx_style": {
+            "color": "D2691E",
+            "bold": false
+          },
+          "instruction": "When specifying durations or time slots, wrap with $$time$$Duration$$time$$"
+        }
+      ]
+    }
+  },
+
+  "constraints": {
+    "focus_on": ["event flow", "practical logistics", "team engagement", "clear timing"],
+    "keep_professional": true
+  }
+}

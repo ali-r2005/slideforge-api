@@ -147,7 +147,13 @@ async def generate_ppt(request: GeneratePresentationRequest):
     user_prompt = request.prompt or ""
     if request.form_data:
         schema = load_schema(request.template_name)
-        user_prompt = build_enhanced_prompt(user_prompt, request.form_data, schema)
+        user_prompt = build_enhanced_prompt(
+            user_prompt,
+            request.form_data,
+            schema,
+            fields=fields,
+            template_metadata=template_metadata
+        )
         logging.info(f"Enhanced prompt built from form_data")
 
     try:
@@ -170,7 +176,8 @@ async def generate_ppt(request: GeneratePresentationRequest):
     generate_presentation(
         template_path=str(template_path),
         output_path=output_file,
-        replacements=ai_response
+        replacements=ai_response,
+        template_metadata=template_metadata
     )
 
     try:
@@ -201,7 +208,7 @@ async def generate_ppt(request: GeneratePresentationRequest):
 async def update_ppt(request: UpdatePresentationRequest):
     template_name = f"{request.template_name}.pptx"
     logging.info(f"Received request to update presentation: {request.file_id} using template: {template_name}")
-    
+
     templates_dir = Path("templates").resolve()
     template_path = (templates_dir / template_name).resolve()
 
@@ -212,13 +219,17 @@ async def update_ppt(request: UpdatePresentationRequest):
 
     if not template_path.is_file():
         raise HTTPException(status_code=404, detail=f"Template '{template_name}' not found")
-    
+
+    # Load template metadata
+    template_metadata = load_template_metadata(request.template_name, str(templates_dir))
+
     output_file = f"generated/{request.file_id}.pptx"
-    
+
     generate_presentation(
         template_path=str(template_path),
         output_path=output_file,
-        replacements=request.replacements
+        replacements=request.replacements,
+        template_metadata=template_metadata
     )
 
     try:
