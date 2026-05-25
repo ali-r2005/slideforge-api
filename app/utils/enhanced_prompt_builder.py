@@ -14,9 +14,7 @@ class EnhancedPromptBuilder:
     def build_prompt_with_form_data(
         user_prompt: str,
         form_data: Dict[str, Any],
-        schema: Dict[str, Any] | None = None,
-        fields: list | None = None,
-        template_metadata: Dict[str, Any] | None = None
+        schema: Dict[str, Any] | None = None
     ) -> str:
         """
         Combines user prompt with structured form data into a single prompt.
@@ -25,8 +23,6 @@ class EnhancedPromptBuilder:
             user_prompt: Free-form user input
             form_data: Structured form data from the schema
             schema: Optional schema for context/labels
-            fields: List of placeholder fields from template
-            template_metadata: Optional template metadata with formatting conventions
 
         Returns:
             Enhanced prompt to send to AI
@@ -39,63 +35,17 @@ class EnhancedPromptBuilder:
             form_data, schema
         )
 
-        # Build field-specific formatting instructions
-        formatting_section = EnhancedPromptBuilder._build_field_specific_formatting(
-            fields, template_metadata
-        )
-
         # Combine into final prompt
         enhanced_prompt = f"""{user_prompt}
 
 Structured Parameters:
 {parameters_section}
-{formatting_section}
 
 IMPORTANT: Treat the above Structured Parameters as strict constraints.
 If the user request conflicts with any parameter, prioritize the parameter values.
 Use these parameters to ensure consistency in the generated content."""
 
         return enhanced_prompt.strip()
-
-    @staticmethod
-    def _build_field_specific_formatting(
-        fields: list | None = None,
-        template_metadata: Dict[str, Any] | None = None
-    ) -> str:
-        """
-        Builds formatting instructions only for fields that have conventions defined.
-
-        Each field can have its own formatting_conventions that apply only to that field.
-        """
-        if not fields or not template_metadata:
-            return ""
-
-        field_instructions = template_metadata.get("field_instructions", {})
-        formatting_lines = []
-
-        for field in fields:
-            placeholder = field.get("placeholder")
-            if not placeholder:
-                continue
-
-            field_meta = field_instructions.get(placeholder, {})
-
-            if isinstance(field_meta, dict):
-                conventions = field_meta.get("formatting_conventions")
-            else:
-                conventions = None
-
-            if conventions:
-                if not formatting_lines:
-                    formatting_lines.append("\nFormatting Instructions:")
-
-                formatting_lines.append(f"\nFor '{placeholder}' field:")
-                for convention in conventions:
-                    instruction = convention.get("instruction", "")
-                    if instruction:
-                        formatting_lines.append(f"  - {instruction}")
-
-        return "\n".join(formatting_lines) if formatting_lines else ""
 
     @staticmethod
     def _build_parameters_section(
@@ -208,9 +158,7 @@ Use these parameters to ensure consistency in the generated content."""
 def build_enhanced_prompt(
     user_prompt: str,
     form_data: Dict[str, Any] | None = None,
-    schema: Dict[str, Any] | None = None,
-    fields: list | None = None,
-    template_metadata: Dict[str, Any] | None = None
+    schema: Dict[str, Any] | None = None
 ) -> str:
     """
     Convenience function to build an enhanced prompt.
@@ -219,5 +167,5 @@ def build_enhanced_prompt(
         return user_prompt
 
     return EnhancedPromptBuilder.build_prompt_with_form_data(
-        user_prompt, form_data, schema, fields, template_metadata
+        user_prompt, form_data, schema
     )

@@ -5,7 +5,7 @@
   "tone": "professional and clear",
 
   "field_instructions": {
-    "program_schedule": {
+    "table:programme": {
       "label": "Program Schedule",
       "description": "Table with activities for each time slot across event days",
       "formatting_conventions": [

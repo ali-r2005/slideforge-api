@@ -149,13 +149,9 @@ async def generate_ppt(request: GeneratePresentationRequest):
         user_prompt = build_enhanced_prompt(
             user_prompt,
             request.form_data,
-            schema,
-            fields=fields,
-            template_metadata=template_metadata
+            schema
         )
         logging.info(f"Enhanced prompt built from form_data")
-    logging.info(f"Final user prompt: {user_prompt}")
-    logging.info(f"Template metadata: {template_metadata}")
 
     try:
         ai_response = await generate_ai_content(
