@@ -130,15 +130,29 @@ def copy_run_formatting(source_run, target_run):
             pass
 
 
-def apply_formatted_text(paragraph, text: str, parser) -> None:
+def apply_formatted_text(paragraph, text: str, parser, base_font_props: Optional[Dict[str, Any]] = None) -> None:
     """
     Apply text with parsed marker formatting to a PowerPoint paragraph.
+    Preserves the placeholder's base font and applies marker-based formatting only to marked text.
 
     Args:
         paragraph: The paragraph to add formatted text to
         text: Text potentially containing markers like $$marker$$content$$marker$$
         parser: MarkerParser instance with field-specific conventions
+        base_font_props: Optional base font properties to apply to all runs
     """
+    # Extract base font properties from the first existing run if not provided
+    if not base_font_props:
+        base_font_props = {}
+        if paragraph.runs:
+            first_run = paragraph.runs[0]
+            base_font_props = {
+                "size": first_run.font.size,
+                "bold": first_run.font.bold,
+                "italic": first_run.font.italic,
+                "color": first_run.font.color.rgb if hasattr(first_run.font.color, 'rgb') else None
+            }
+
     runs_data = parser.get_pptx_runs(text)
 
     # Clear existing runs
@@ -149,7 +163,18 @@ def apply_formatted_text(paragraph, text: str, parser) -> None:
         run = paragraph.add_run()
         run.text = run_data["text"]
 
-        # Apply color formatting
+        # Start with base font properties (placeholder font)
+        if base_font_props.get("size"):
+            run.font.size = base_font_props["size"]
+        if base_font_props.get("bold") is not None:
+            run.font.bold = base_font_props["bold"]
+        if base_font_props.get("italic") is not None:
+            run.font.italic = base_font_props["italic"]
+        if base_font_props.get("color"):
+            run.font.color.rgb = base_font_props["color"]
+
+        # Override with marker-specific formatting (only if marker style is defined)
+        # Color from marker overrides placeholder color
         if run_data.get("color"):
             try:
                 r = int(run_data["color"][0:2], 16)
@@ -159,15 +184,15 @@ def apply_formatted_text(paragraph, text: str, parser) -> None:
             except (ValueError, TypeError):
                 pass
 
-        # Apply bold
+        # Bold from marker overrides placeholder bold (only if marker specifies bold)
         if run_data.get("bold"):
             run.font.bold = True
 
-        # Apply italic
+        # Italic from marker overrides placeholder italic (only if marker specifies italic)
         if run_data.get("italic"):
             run.font.italic = True
 
-        # Apply font size
+        # Font size from marker overrides placeholder size (only if marker specifies size)
         if run_data.get("font_size"):
             try:
                 run.font.size = Pt(int(run_data["font_size"]))
@@ -438,7 +463,13 @@ def generate_presentation(
                             if table_data and isinstance(table_data, list):
                                 # Extract column headers from the table
                                 column_headers = extract_table_headers(shape.table)
-                                fill_table(shape.table, table_data, column_headers=column_headers)
+                                fill_table(
+                                    shape.table,
+                                    table_data,
+                                    column_headers=column_headers,
+                                    field_placeholder=table_name,
+                                    template_metadata=template_metadata
+                                )
         
         # Apply custom map highlighting and pointer logic
         apply_map_logic(slide, replacements)
@@ -502,7 +533,7 @@ def extract_template_row_formatting(table):
     return formatting
 
 
-def fill_table(table, data, column_headers=None):
+def fill_table(table, data, column_headers=None, field_placeholder=None, template_metadata=None):
     """
     Fills a PowerPoint table with data, adding rows as needed and preserving styles.
 
@@ -511,6 +542,13 @@ def fill_table(table, data, column_headers=None):
     2. List of lists: [["John", "john@example.com"], ...]
 
     Assumes row 0 is header and row 1 is template row.
+
+    Args:
+        table: The PowerPoint table to fill
+        data: List of row data (dicts or lists)
+        column_headers: Optional list of column header names
+        field_placeholder: Optional field name for marker-based formatting
+        template_metadata: Optional template metadata with formatting conventions
     """
     if not data:
         return
@@ -562,7 +600,13 @@ def fill_table(table, data, column_headers=None):
 
             # IMPORTANT: Replace text in existing runs to preserve formatting
             # Do NOT use cell.text = ... as it clears all formatting
-            set_cell_text_preserve_formatting(cell, str(cell_value))
+            # Pass cell_value directly (string or array) - function handles both
+            set_cell_text_preserve_formatting(
+                cell,
+                cell_value,
+                field_placeholder=field_placeholder,
+                template_metadata=template_metadata
+            )
 
 def add_row_to_table(table):
     """
@@ -585,9 +629,22 @@ def add_row_to_table(table):
     # Return the newly created row object
     return table.rows[len(table.rows) - 1]
 
-def set_cell_text_preserve_formatting(cell, text):
+def set_cell_text_preserve_formatting(
+    cell,
+    text,
+    field_placeholder: Optional[str] = None,
+    template_metadata: Optional[Dict[str, Any]] = None
+):
     """
     Sets cell text while preserving all existing formatting.
+    Handles both strings and arrays of strings (with line breaks between items).
+    Applies marker-based formatting if template metadata is provided.
+
+    Args:
+        cell: The table cell to update
+        text: Text or array of text to insert
+        field_placeholder: Optional field name for marker-based formatting
+        template_metadata: Optional template metadata with formatting conventions
 
     IMPORTANT: Do NOT use cell.text = ... because it clears formatting.
     Instead, replace text in the existing runs while keeping their properties.
@@ -597,20 +654,115 @@ def set_cell_text_preserve_formatting(cell, text):
 
     text_frame = cell.text_frame
 
-    # Clear all existing text but preserve the run objects and their formatting
-    for paragraph in text_frame.paragraphs:
-        if paragraph.runs:
-            # Set text to the first run, clear the rest
-            for run_idx, run in enumerate(paragraph.runs):
-                if run_idx == 0:
-                    run.text = text
-                else:
-                    run.text = ""
+    # Convert text to list if it's a string
+    if isinstance(text, str):
+        paragraphs_to_add = [text]
+    elif isinstance(text, list):
+        # Filter out empty strings from array
+        paragraphs_to_add = [str(item) for item in text if item]
+    else:
+        paragraphs_to_add = [str(text)]
+
+    if not paragraphs_to_add:
+        # If no content, clear the cell
+        for paragraph in text_frame.paragraphs:
+            for run in paragraph.runs:
+                run.text = ""
+        return
+
+    # Create parser for marker-based formatting if metadata provided
+    parser = None
+    if field_placeholder and template_metadata:
+        from app.utils.marker_parser import MarkerParser
+        parser = MarkerParser.for_field(template_metadata, field_placeholder)
+
+    # Extract base font properties and paragraph formatting from the first paragraph once
+    # This will be applied to all paragraphs in the array
+    first_paragraph = text_frame.paragraphs[0]
+    base_font_props = {}
+    base_paragraph_props = {
+        "alignment": first_paragraph.alignment,  # Center, left, right, justify
+        "level": first_paragraph.level,           # Indentation level
+        "space_before": first_paragraph.space_before,
+        "space_after": first_paragraph.space_after,
+        "line_spacing": first_paragraph.line_spacing
+    }
+
+    if first_paragraph.runs:
+        first_run = first_paragraph.runs[0]
+        base_font_props = {
+            "size": first_run.font.size,
+            "bold": first_run.font.bold,
+            "italic": first_run.font.italic,
+            "color": first_run.font.color.rgb if hasattr(first_run.font.color, 'rgb') else None
+        }
+
+    # Set text to the first paragraph with formatting
+    if parser:
+        # Clear existing runs first
+        for run in first_paragraph.runs:
+            run.text = ""
+        # Apply formatted text with markers, passing base font to all paragraphs
+        apply_formatted_text(first_paragraph, paragraphs_to_add[0], parser, base_font_props)
+    else:
+        # Plain text without marker formatting
+        if first_paragraph.runs:
+            first_paragraph.runs[0].text = paragraphs_to_add[0]
+            for run in first_paragraph.runs[1:]:
+                run.text = ""
         else:
-            # No runs exist, create one
-            # This shouldn't happen in normal cases, but handle it
-            run = paragraph.add_run()
-            run.text = text
+            run = first_paragraph.add_run()
+            run.text = paragraphs_to_add[0]
+
+    # If we have multiple paragraphs (array), add spacing after first paragraph for visibility
+    if len(paragraphs_to_add) > 1:
+        if base_paragraph_props["space_after"] is not None and base_paragraph_props["space_after"] > Pt(0):
+            first_paragraph.space_after = base_paragraph_props["space_after"]
+        else:
+            # Add visible spacing between array items in table cells
+            first_paragraph.space_after = Pt(6)
+
+    # Add remaining paragraphs for array items (creates line breaks)
+    for idx, paragraph_text in enumerate(paragraphs_to_add[1:]):
+        # Add a new paragraph
+        new_paragraph = text_frame.add_paragraph()
+
+        # Apply paragraph formatting (alignment, spacing, etc.)
+        if base_paragraph_props["alignment"] is not None:
+            new_paragraph.alignment = base_paragraph_props["alignment"]
+        if base_paragraph_props["level"] is not None:
+            new_paragraph.level = base_paragraph_props["level"]
+        if base_paragraph_props["space_before"] is not None:
+            new_paragraph.space_before = base_paragraph_props["space_before"]
+
+        # Add explicit spacing after paragraphs for visibility in table cells
+        # Use the template's space_after if set, otherwise add 6pt spacing
+        if base_paragraph_props["space_after"] is not None and base_paragraph_props["space_after"] > Pt(0):
+            new_paragraph.space_after = base_paragraph_props["space_after"]
+        else:
+            # Add visible spacing between array items in table cells
+            new_paragraph.space_after = Pt(6)
+
+        if base_paragraph_props["line_spacing"] is not None:
+            new_paragraph.line_spacing = base_paragraph_props["line_spacing"]
+
+        if parser:
+            # Apply formatted text with marker parsing, using same base font for all paragraphs
+            apply_formatted_text(new_paragraph, paragraph_text, parser, base_font_props)
+        else:
+            # Plain text
+            new_paragraph.text = paragraph_text
+            # Preserve formatting from the first paragraph if possible
+            if first_paragraph.runs:
+                for run in new_paragraph.runs:
+                    first_run = first_paragraph.runs[0]
+                    # Copy font properties
+                    if first_run.font.size:
+                        run.font.size = first_run.font.size
+                    if first_run.font.bold is not None:
+                        run.font.bold = first_run.font.bold
+                    if first_run.font.italic is not None:
+                        run.font.italic = first_run.font.italic
 
 
 def apply_cell_formatting(cell, formatting):

@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from typing import Optional, Dict, Any, List
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import (
     SystemMessage,
     HumanMessage
@@ -21,12 +21,11 @@ from app.utils.prompts import (
 load_dotenv()
 
 # We use JSON mode to force the model to return valid JSON
-llm = ChatOpenAI(
+llm = ChatGoogleGenerativeAI(
     model=os.getenv("OPENROUTER_MODEL") or "gpt-4o-mini",
-    base_url="https://openrouter.ai/api/v1",
-    api_key=SecretStr(os.getenv("OPENROUTER_API_KEY") or ""),
+    google_api_key=os.getenv("OPENROUTER_API_KEY") or "",
     temperature=0.7,
-    model_kwargs={"response_format": {"type": "json_object"}}
+    response_mime_type="application/json" 
 )
 
 def extract_json(content: str) -> str:

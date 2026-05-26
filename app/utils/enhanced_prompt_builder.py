@@ -155,28 +155,32 @@ Use these parameters to ensure consistency in the generated content."""
                         col_label = col_key.replace("_", " ").title()
 
                         # Flatten complex cell structures to array of paragraphs
+                        # IMPORTANT: Preserve the order of keys as they come from the frontend
                         if isinstance(col_value, dict):
                             # Extract text from complex structure into paragraph array
+                            # Iterate in the order keys appear in the dict (frontend drag-drop order)
                             paragraphs = []
 
-                            if col_value.get("context_prompt"):
-                                paragraphs.append(f"Context: {col_value['context_prompt']}")
+                            # Process keys in their original order (as sent by frontend)
+                            for cell_key in col_value.keys():
+                                if cell_key == "context_prompt" and col_value.get("context_prompt"):
+                                    paragraphs.append(f"Context: {col_value['context_prompt']}")
 
-                            if col_value.get("team_building"):
-                                tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(
-                                    col_value["team_building"]
-                                )
-                                if tb_enriched:
-                                    paragraphs.append(f"Team Building: {tb_enriched}")
+                                elif cell_key == "team_building" and col_value.get("team_building"):
+                                    tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(
+                                        col_value["team_building"]
+                                    )
+                                    if tb_enriched:
+                                        paragraphs.append(f"Team Building: {tb_enriched}")
 
-                            if col_value.get("agency_offer_request"):
-                                offers = col_value["agency_offer_request"]
-                                if isinstance(offers, list):
-                                    for offer in offers:
-                                        if offer:
-                                            paragraphs.append(f"Offer: {offer}")
-                                elif offers:
-                                    paragraphs.append(f"Offer: {offers}")
+                                elif cell_key == "agency_offer_request" and col_value.get("agency_offer_request"):
+                                    offers = col_value["agency_offer_request"]
+                                    if isinstance(offers, list):
+                                        for offer in offers:
+                                            if offer:
+                                                paragraphs.append(f"Offer: {offer}")
+                                    elif offers:
+                                        paragraphs.append(f"Offer: {offers}")
 
                             # Build array format for AI
                             if paragraphs:
