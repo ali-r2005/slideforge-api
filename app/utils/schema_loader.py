@@ -9,16 +9,18 @@ logger = logging.getLogger(__name__)
 class SchemaLoader:
     """
     Loads and manages JSON schemas for templates.
-    Schemas define the form structure and validation rules.
+    Schemas are defined within template metadata files under the "schema" property.
     """
 
-    def __init__(self, schemas_dir: str = "templates/schemas"):
-        self.schemas_dir = Path(schemas_dir)
+    def __init__(self, templates_dir: str = "templates"):
+        self.templates_dir = Path(templates_dir)
         self._cache: Dict[str, Dict[str, Any]] = {}
 
     def load_schema(self, template_name: str) -> Optional[Dict[str, Any]]:
         """
-        Load a schema for a given template.
+        Load a schema for a given template from its metadata file.
+
+        The schema is embedded in the template metadata file under the "schema" property.
 
         Args:
             template_name: Name of the template (without .json extension)
@@ -30,20 +32,31 @@ class SchemaLoader:
         if template_name in self._cache:
             return self._cache[template_name]
 
-        schema_path = self.schemas_dir / f"{template_name}-schema.json"
+        template_path = self.templates_dir / f"{template_name}.json"
 
-        if not schema_path.is_file():
-            logger.info(f"Schema not found for template: {template_name}")
+        if not template_path.is_file():
+            logger.info(f"Template not found for: {template_name}")
             return None
 
         try:
-            with open(schema_path, "r", encoding="utf-8") as f:
-                schema = json.load(f)
+            with open(template_path, "r", encoding="utf-8") as f:
+                template_data = json.load(f)
+
+            # Extract schema from template metadata
+            if "schema" not in template_data:
+                logger.info(f"No schema defined in template: {template_name}")
+                return None
+
+            schema = template_data["schema"]
 
             # Validate schema structure
             if not self._validate_schema_structure(schema):
                 logger.error(f"Invalid schema structure for {template_name}")
                 return None
+
+            # Ensure template_name is set for consistency
+            if "template_name" not in schema:
+                schema["template_name"] = template_name
 
             # Cache it
             self._cache[template_name] = schema
@@ -51,7 +64,7 @@ class SchemaLoader:
             return schema
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse schema for {template_name}: {e}")
+            logger.error(f"Failed to parse template for {template_name}: {e}")
             return None
         except Exception as e:
             logger.error(f"Error loading schema for {template_name}: {e}")

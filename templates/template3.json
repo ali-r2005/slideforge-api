@@ -3,6 +3,77 @@
   "description": "Destination showcase for corporate travel and team building",
   "system_instructions": "Generate engaging travel destination content that appeals to corporate team-building events. Focus on practical benefits, accessibility, and unique experiences that enhance team cohesion.",
   "tone": "professional yet engaging and aspirational",
+
+  "schema": {
+    "fields": [
+      {
+        "name": "destination_name",
+        "type": "enum",
+        "required": true,
+        "label": "Destination",
+        "description": "Select the destination for the event",
+        "values": ["Marrakech", "Tangier", "Fez", "Casablanca", "Rabat"]
+      },
+      {
+        "name": "event_budget",
+        "type": "number",
+        "required": false,
+        "label": "Budget (USD)",
+        "description": "Estimated budget for the event",
+        "min": 1000,
+        "max": 100000
+      },
+      {
+        "name": "event_date_range_start",
+        "type": "date",
+        "required": false,
+        "label": "Event Start Date",
+        "description": "When the event begins"
+      },
+      {
+        "name": "event_date_range_end",
+        "type": "date",
+        "required": false,
+        "label": "Event End Date",
+        "description": "When the event ends"
+      },
+      {
+        "name": "attendee_count",
+        "type": "number",
+        "required": false,
+        "label": "Expected Attendees",
+        "description": "Number of participants expected",
+        "min": 1,
+        "max": 500
+      },
+      {
+        "name": "special_requirements",
+        "type": "textarea",
+        "required": false,
+        "label": "Special Requirements",
+        "description": "Any special needs or constraints",
+        "max_length": 500
+      }
+    ],
+    "groups": [
+      {
+        "name": "Basic Details",
+        "description": "Core event information",
+        "fields": ["destination_name", "attendee_count"]
+      },
+      {
+        "name": "Event Schedule",
+        "description": "Date and timing information",
+        "fields": ["event_date_range_start", "event_date_range_end"]
+      },
+      {
+        "name": "Budget & Requirements",
+        "description": "Financial and special needs",
+        "fields": ["event_budget", "special_requirements"]
+      }
+    ]
+  },
+
   "field_instructions": {
     "title": "Create a compelling title that highlights the destination for corporate events. Format: '[Destination] for [Activity Type]' or '[Activity] in [Destination]'",
     "destination_name": "Format as 'City, Country' (e.g., 'Tangier, Morocco')",
@@ -12,6 +83,7 @@
       "key_points": ["destination appeal", "cultural value", "weather/climate", "practical logistics"]
     }
   },
+
   "constraints": {
     "avoid": ["generic tourism clichés", "overly promotional language"],
     "focus_on": ["team-building potential", "unique experiences", "practical information", "authentic cultural aspects"],

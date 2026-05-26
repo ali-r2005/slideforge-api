@@ -1,30 +1,55 @@
 # Schema-Driven Form System - Implementation Guide
 
-## What I've Created So Far
+## Architecture Overview
 
-### **Backend Files (Phase 1: Infrastructure)**
+### **Template Metadata Structure**
 
-#### **1. Schema Files** (`templates/schemas/`)
-- `template3-schema.json` - Example schema for destination template
-- `event_template-schema.json` - Example schema for event planning template
+Templates now consolidate all metadata, schema, and configuration in a single file (`templates/{template_name}.json`):
+
+```json
+{
+  "name": "template_name",
+  "description": "User-facing description",
+  "system_instructions": "AI generation instructions",
+  "tone": "professional and clear",
+  
+  "schema": {
+    "fields": [...],    // Form field definitions
+    "groups": [...]     // Organized field groups
+  },
+  
+  "field_instructions": {...},  // Per-field AI instructions
+  "constraints": {...}          // Template constraints
+}
+```
+
+### **Backend Files (Infrastructure)**
+
+#### **1. Template Metadata Files** (`templates/`)
+- `template3.json` - Destination showcase with event planning
+- `template7.json` - Event program schedule with draggable sections
+- `event_template.json` - Full event planning form
+- `corporate_pitch.json` - Corporate pitch presentation
 
 **What they contain:**
-- Field definitions (name, type, label, required, constraints)
+- Template name, description, and system instructions
+- Embedded schema with field definitions (name, type, label, required, constraints)
 - Validation rules (min, max, max_length, enum values)
-- Support for date ranges (start_date, end_date)
-- Optional/required field configuration
+- Field instructions for AI generation
+- Template constraints and focus areas
 
 #### **2. Schema Loader** (`app/utils/schema_loader.py`)
 **Responsibilities:**
-- Load JSON schemas from `templates/schemas/` folder
+- Load JSON schemas from template metadata files (`templates/{template_name}.json`)
+- Extract the `schema` property from template metadata
 - Validate schema structure
 - Cache schemas for performance
 - Return None if schema doesn't exist (graceful fallback)
 
 **Key functions:**
 ```python
-load_schema(template_name)  # Load a schema
-has_schema(template_name)   # Check if schema exists
+load_schema(template_name)  # Load schema from template metadata
+has_schema(template_name)   # Check if template has schema
 get_field_by_name()         # Get specific field definition
 ```
 
@@ -265,11 +290,36 @@ Structured Parameters:
 
 ---
 
+## Migration to Unified Template Structure
+
+### **What Changed**
+
+**Before:**
+- Template metadata: `templates/{template_name}.json`
+- Schema definition: `templates/schemas/{template_name}-schema.json`
+- Two separate files per template
+
+**After:**
+- Unified template file: `templates/{template_name}.json`
+- Schema embedded under `schema` property
+- Single source of truth per template
+- `templates/schemas/` directory removed
+
+### **Benefits of Consolidation**
+
+✅ **Single Source of Truth** - All template config in one file  
+✅ **Easier Maintenance** - No file synchronization issues  
+✅ **Better Organization** - Schema, metadata, instructions together  
+✅ **Clearer Overview** - See complete template configuration at a glance  
+✅ **Simplified Updates** - Modify template and schema in one place  
+
+---
+
 ## Testing the Schema System
 
 **To test locally:**
-1. Create a schema file for your template
-2. Request GET /schema/{template_name} → Should return schema
+1. Select a template with schema from the form
+2. Request GET /schema/{template_name} → Should return schema extracted from template metadata
 3. Submit form_data with POST /generate-ppt → Should validate and generate
 4. Check AI response respects the Structured Parameters
 
@@ -279,3 +329,5 @@ Structured Parameters:
 - Number out of range → Error
 - Valid form_data → Generates presentation
 - Template without schema → Falls back to text mode
+- Language selection → AI generates in selected language
+- Program table drag-drop → Sections reorder correctly

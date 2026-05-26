@@ -74,32 +74,47 @@ Templates can define a JSON schema to collect structured form data from users in
 
 ### Schema Structure
 
-Each schema file should be named `{template_name}-schema.json` and placed in `templates/schemas/`:
+Schemas are **embedded within template metadata files**. Each template file (`templates/{template_name}.json`) can include a `schema` property with field definitions:
 
 ```json
 {
-  "template_name": "template_name",
-  "description": "Description shown to users",
-  "fields": [
-    {
-      "name": "field_name",
-      "type": "text|textarea|number|email|date|enum|boolean",
-      "required": true,
-      "label": "Field Label",
-      "description": "Help text shown to users",
-      "values": ["option1", "option2"],  // For enum type
-      "min": 0,                          // For number type
-      "max": 100,                        // For number type
-      "max_length": 200                  // For text/textarea
-    }
-  ],
-  "groups": [                            // Optional: organize fields visually
-    {
-      "name": "Group Name",
-      "description": "Group description",
-      "fields": ["field_name1", "field_name2"]
-    }
-  ]
+  "name": "template_name",
+  "description": "Template description",
+  "system_instructions": "AI generation instructions",
+  "tone": "professional and clear",
+  
+  "schema": {
+    "fields": [
+      {
+        "name": "field_name",
+        "type": "text|textarea|number|email|date|enum|boolean|program_table",
+        "required": true,
+        "label": "Field Label",
+        "description": "Help text shown to users",
+        "values": ["option1", "option2"],  // For enum type
+        "min": 0,                          // For number type
+        "max": 100,                        // For number type
+        "max_length": 200,                 // For text/textarea
+        "default": "value"                 // Optional default value
+      }
+    ],
+    "groups": [                            // Optional: organize fields visually
+      {
+        "name": "Group Name",
+        "description": "Group description",
+        "fields": ["field_name1", "field_name2"]
+      }
+    ]
+  },
+  
+  "field_instructions": {
+    "placeholder_name": "Special instructions for AI"
+  },
+  
+  "constraints": {
+    "focus_on": ["theme1", "theme2"],
+    "keep_professional": true
+  }
 }
 ```
 
@@ -112,6 +127,7 @@ Each schema file should be named `{template_name}-schema.json` and placed in `te
 - **date**: Date picker (YYYY-MM-DD format)
 - **enum**: Dropdown select (requires values array)
 - **boolean**: Checkbox
+- **program_table**: Complex table with draggable sections for event scheduling
 
 ### Form Groups
 
@@ -134,12 +150,13 @@ Groups organize related fields into visually separated sections. For example:
 
 Groups are optional. If not specified, all fields display in a flat list. Fields not referenced in any group appear at the top.
 
-### Example Schemas
+### Example Templates
 
-See `templates/schemas/` directory for examples:
-- `template3-schema.json` - Event details with scheduling
-- `event_template-schema.json` - Full event planning form
-- `corporate_pitch-schema.json` - Contact and company information
+See `templates/` directory for examples:
+- `template3.json` - Destination showcase with event planning
+- `template7.json` - Event program schedule with draggable sections
+- `event_template.json` - Full event planning form
+- `corporate_pitch.json` - Corporate pitch with company information
 
 ## 📦 Requirements
 - Python 3.10+
