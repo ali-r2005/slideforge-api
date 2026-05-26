@@ -1,5 +1,7 @@
 from typing import Dict, Any, Optional
 import logging
+import json
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -9,6 +11,68 @@ class EnhancedPromptBuilder:
     Builds enhanced prompts that combine user input with structured form data.
     Ensures AI respects the structured parameters as constraints.
     """
+
+    @staticmethod
+    def _enrich_team_building_data(team_building_value: Any) -> Optional[str]:
+        """
+        Fetch team building activity details from DB and format for prompt.
+
+        Args:
+            team_building_value: Team building name/ID or dict from form
+
+        Returns:
+            Formatted team building description with action, objectives, experience, les_plus
+        """
+        if not team_building_value:
+            return None
+
+        # Extract team building name if it's a dict
+        tb_name = team_building_value
+        if isinstance(team_building_value, dict):
+            tb_name = team_building_value.get("name")
+
+        if not tb_name:
+            return None
+
+        try:
+            # Load team building database
+            db_path = Path("DB/tb.json")
+            if not db_path.exists():
+                return None
+
+            with open(db_path, "r", encoding="utf-8") as f:
+                activities = json.load(f)
+
+            # Find matching activity (case-insensitive)
+            activity = None
+            for act in activities:
+                if act.get("name", "").lower() == str(tb_name).lower():
+                    activity = act
+                    break
+
+            if not activity:
+                return None
+
+            # Format enriched data
+            parts = [f"Team Building: {activity.get('name', tb_name)}"]
+
+            if activity.get("objectives"):
+                objs = ", ".join(activity["objectives"])
+                parts.append(f"Objectives: {objs}")
+
+            if activity.get("experience"):
+                exp = ", ".join(activity["experience"])
+                parts.append(f"Experience: {exp}")
+
+            if activity.get("les_plus"):
+                benefits = ", ".join(activity["les_plus"])
+                parts.append(f"Benefits: {benefits}")
+
+            return " | ".join(parts)
+
+        except Exception as e:
+            logger.warning(f"Failed to enrich team building data: {e}")
+            return None
 
     @staticmethod
     def build_prompt_with_form_data(
@@ -90,26 +154,36 @@ Use these parameters to ensure consistency in the generated content."""
 
                         col_label = col_key.replace("_", " ").title()
 
-                        # Flatten complex cell structures to simple text
+                        # Flatten complex cell structures to array of paragraphs
                         if isinstance(col_value, dict):
-                            # Extract text from complex structure if present
-                            cell_text_parts = []
-                            if col_value.get("context_prompt"):
-                                cell_text_parts.append(col_value["context_prompt"])
-                            if col_value.get("agency_offer_request"):
-                                cell_text_parts.append(col_value["agency_offer_request"])
-                            if col_value.get("team_building"):
-                                tb = col_value["team_building"]
-                                if isinstance(tb, dict):
-                                    tb_name = tb.get("name", "")
-                                    if tb_name:
-                                        cell_text_parts.append(f"Team Building: {tb_name}")
-                                elif isinstance(tb, str) and tb:
-                                    cell_text_parts.append(f"Team Building: {tb}")
+                            # Extract text from complex structure into paragraph array
+                            paragraphs = []
 
-                            # Combine all parts into a single string
-                            combined_text = " | ".join(cell_text_parts) if cell_text_parts else ""
-                            lines.append(f"    {col_label}: {combined_text}")
+                            if col_value.get("context_prompt"):
+                                paragraphs.append(f"Context: {col_value['context_prompt']}")
+
+                            if col_value.get("team_building"):
+                                tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(
+                                    col_value["team_building"]
+                                )
+                                if tb_enriched:
+                                    paragraphs.append(f"Team Building: {tb_enriched}")
+
+                            if col_value.get("agency_offer_request"):
+                                offers = col_value["agency_offer_request"]
+                                if isinstance(offers, list):
+                                    for offer in offers:
+                                        if offer:
+                                            paragraphs.append(f"Offer: {offer}")
+                                elif offers:
+                                    paragraphs.append(f"Offer: {offers}")
+
+                            # Build array format for AI
+                            if paragraphs:
+                                paragraphs_str = ", ".join([f'"{p}"' for p in paragraphs])
+                                lines.append(f"    {col_label}: [{paragraphs_str}]")
+                            else:
+                                lines.append(f"    {col_label}: []")
                         else:
                             # Simple string value
                             lines.append(f"    {col_label}: {col_value}")
