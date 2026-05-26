@@ -60,7 +60,7 @@ class SchemaValidator:
         return len(errors) == 0, errors
 
     @staticmethod
-    def _validate_field_type(field: Dict[str, Any], value: Any) -> str:
+    def _validate_field_type(field: Dict[str, Any], value: Any) -> str | None:
         """
         Validate that the value matches the field type.
         Returns error message if invalid, None if valid.
@@ -186,14 +186,8 @@ class SchemaValidator:
         field_type = field.get("type")
 
         try:
-            # Text length validation
-            if field_type in ("text", "textarea") and isinstance(value, str):
-                max_length = field.get("max_length")
-                if max_length and len(value) > max_length:
-                    errors.append(f"Field '{field_name}' exceeds maximum length of {max_length}")
-
             # Number range validation
-            elif field_type == "number":
+            if field_type == "number":
                 num_value = float(value)
                 min_val = field.get("min")
                 max_val = field.get("max")

@@ -200,7 +200,6 @@ async def generate_ppt(request: GeneratePresentationRequest):
         "pptx_url": f"/generated/{Path(output_file).name}"
     }
 
-
 @router.post("/update-ppt")
 async def update_ppt(request: UpdatePresentationRequest):
     template_name = f"{request.template_name}.pptx"

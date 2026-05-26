@@ -75,7 +75,7 @@ Requirements:
 
 
 def get_field_instruction_section(template_metadata: Dict[str, Any], field_name: str) -> Optional[str]:
-    """Helper to get field-specific instructions from metadata, including formatting conventions."""
+    """Helper to get field-specific instructions from metadata, including formatting conventions and max_chars."""
     if not template_metadata:
         return None
 
@@ -88,6 +88,11 @@ def get_field_instruction_section(template_metadata: Dict[str, Any], field_name:
         return None
 
     sections = []
+
+    # Handle max_chars constraint
+    max_chars = field_meta.get("max_chars")
+    if max_chars:
+        sections.append(f"- Max characters: {max_chars}")
 
     # Handle table-specific properties
     if field_meta.get("type") == "table" or field_meta.get("rows") or field_meta.get("column_names"):

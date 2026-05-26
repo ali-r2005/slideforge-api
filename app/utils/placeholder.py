@@ -52,13 +52,3 @@ def infer_placeholder_type(field_name: str):
 
     return "text"
 
-TYPE_MAX_CHARS = {
-    "title": 40,
-    "subtitle": 60,
-    "paragraph": 150,
-    "bullet_list": 80,
-    "text": 100,
-    "image_logo": 50,
-    "image_topic": 50,
-    "table": 500
-}
