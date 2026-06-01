@@ -96,7 +96,7 @@
     "table:programme": {
       "label": "Program Schedule",
       "description": "Table with activities for each time slot across event days",
-      "instructions": "For each time slot (Matinée, Après-midi, Soirée, etc.), return an ARRAY of paragraphs in the EXACT ORDER shown in the parameters below. Each item in the array should be a separate paragraph. The user has customized the order of: context, team_building, and offers (default: context → team_building → offers). CRITICAL: Generate paragraphs in the EXACT sequence they appear in the parameters. Do not reorder. For each part: 1) context - a description paragraph of activities and logistics. 2) team_building (optional) - if provided, generate a paragraph about the team building activity including: action (what it is), objective (what it aims to achieve), experience (immersive/competitive nature), and les_plus (why it's beneficial for the team + key bonuses). 3) offers (optional) - array of individual offering paragraphs, each describing one benefit/offering. Return the time slot value as an array with paragraphs in the order specified. Example: ['Context paragraph...', 'Team Building paragraph...', 'Offering 1...', 'Offering 2...'].",
+      "instructions": "For each time slot (Matinée, Après-midi, Soirée, etc.), return an ARRAY of paragraphs in the EXACT ORDER shown in the parameters below. Each item in the array should be a separate paragraph. The user has customized the order of: context, team_building, and offers (default: context → team_building → offers). CRITICAL: Generate paragraphs in the EXACT sequence they appear in the parameters. Do not reorder. For each part: 1) context - a description paragraph of activities and logistics. 2) team_building (optional) - if provided, generate a paragraph about the team building activity including: action (what it is), objective (what it aims to achieve), experience (immersive/competitive nature), and Les ++ (why it's beneficial for the team + key bonuses). 3) offers (optional) - a paragraph, each describing one benefit/offering. Return the time slot value as an array with paragraphs in the order specified. Example: ['Context paragraph...', 'Team Building paragraph...', 'Offering paragraph...'].",
       "formatting_conventions": [
         {
           "name": "activity_name",
@@ -107,6 +107,26 @@
             "bold": true
           },
           "instruction": "When mentioning activity or session names, wrap with $$activity$$Activity Name$$activity$$"
+        },
+        {
+          "name": "agency_offer",
+          "marker": "$$agency_offer$$",
+          "description": "Agency offer descriptions",
+          "pptx_style": {
+            "color": "FF0000",
+            "bold": true
+          },
+          "instruction": "When generating an agency offer section, wrap ONLY the section heading with the $$agency_offer$$ marker. The heading must indicate that Tendencia is the agency responsible for organizing the event and must be translated according to the output language. Examples: French: $$agency_offer$$Offert par Tendencia :$$agency_offer$$, English: $$agency_offer$$Offered by Tendencia:$$agency_offer$$, Spanish: $$agency_offer$$Ofrecido por Tendencia:$$agency_offer$$, Arabic: $$agency_offer$$مقدم من Tendencia:$$agency_offer$$. Preserve the agency name 'Tendencia' exactly as written. Never wrap, highlight, style, or mark the offer details listed underneath. The $$agency_offer$$ marker must be applied exclusively to the section heading and nowhere else."
+        },
+        {
+          "name": "key_benefits",
+          "marker": "$$key_benefits$$",
+          "description": "Key benefits",
+          "pptx_style": {
+            "color": "976859",
+            "bold": true
+          },
+          "instruction": "When generating the benefits section, wrap ONLY the section title with the $$key_benefits$$ marker. Use the translated label according to the output language: $$key_benefits$$Les ++$$key_benefits$$ for French, $$key_benefits$$Key Benefits$$key_benefits$$ for English, $$key_benefits$$Beneficios Clave$$key_benefits$$ for Spanish, and the equivalent translation for other supported languages. Never wrap, highlight, style, or mark the individual benefit items. The marker must be applied exclusively to the section heading and nowhere else."
         },
         {
           "name": "location",

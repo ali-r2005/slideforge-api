@@ -154,40 +154,32 @@ Use these parameters to ensure consistency in the generated content."""
 
                         col_label = col_key.replace("_", " ").title()
 
-                        # Flatten complex cell structures to array of paragraphs
-                        # IMPORTANT: Preserve the order of keys as they come from the frontend
+                        # Pass cell object directly from frontend
                         if isinstance(col_value, dict):
-                            # Extract text from complex structure into paragraph array
-                            # Iterate in the order keys appear in the dict (frontend drag-drop order)
-                            paragraphs = []
+                            obj_items = []
 
-                            # Process keys in their original order (as sent by frontend)
-                            for cell_key in col_value.keys():
-                                if cell_key == "context_prompt" and col_value.get("context_prompt"):
-                                    paragraphs.append(f"Context: {col_value['context_prompt']}")
+                            for cell_key, cell_val in col_value.items():
+                                if cell_val is None or cell_val == "" or cell_val == []:
+                                    continue
 
-                                elif cell_key == "team_building" and col_value.get("team_building"):
-                                    tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(
-                                        col_value["team_building"]
-                                    )
+                                if cell_key == "team_building" and isinstance(cell_val, dict):
+                                    # For team_building, extract enriched data
+                                    tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(cell_val)
                                     if tb_enriched:
-                                        paragraphs.append(f"Team Building: {tb_enriched}")
+                                        obj_items.append(f'"{cell_key}": "{tb_enriched}"')
+                                elif cell_key == "agency_offer" and isinstance(cell_val, list):
+                                    # For offers array
+                                    offers_str = ", ".join([f'"{offer}"' for offer in cell_val if offer])
+                                    obj_items.append(f'"{cell_key}": [{offers_str}]')
+                                elif isinstance(cell_val, str):
+                                    # For text values like context_prompt
+                                    obj_items.append(f'"{cell_key}": "{cell_val}"')
 
-                                elif cell_key == "agency_offer_request" and col_value.get("agency_offer_request"):
-                                    offers = col_value["agency_offer_request"]
-                                    if isinstance(offers, list):
-                                        for offer in offers:
-                                            if offer:
-                                                paragraphs.append(f"Offer: {offer}")
-                                    elif offers:
-                                        paragraphs.append(f"Offer: {offers}")
-
-                            # Build array format for AI
-                            if paragraphs:
-                                paragraphs_str = ", ".join([f'"{p}"' for p in paragraphs])
-                                lines.append(f"    {col_label}: [{paragraphs_str}]")
+                            if obj_items:
+                                obj_str = ", ".join(obj_items)
+                                lines.append(f"    {col_label}: {{{obj_str}}}")
                             else:
-                                lines.append(f"    {col_label}: []")
+                                lines.append(f"    {col_label}: {{}}")
                         else:
                             # Simple string value
                             lines.append(f"    {col_label}: {col_value}")
