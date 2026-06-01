@@ -51,7 +51,6 @@ def build_user_prompt(user_prompt: str, fields: List[Dict[str, Any]], template_m
                 f"Field: {field['placeholder']}",
                 f"- Slide: {field['slide_number']}",
                 f"- Type: {field['type']}",
-                f"- Max chars: {field['max_chars']}",
                 f"- Paragraphs: {field.get('paragraphs', 1)}" if field.get('paragraphs', 1) > 1 else None,
                 f"- Columns: {field.get('columns', 'N/A')}" if field['type'] == 'table' else None,
                 f"- Column headers: {format_table_columns_for_prompt(field.get('column_headers', []))}" if field['type'] == 'table' and field.get('column_headers') else None,

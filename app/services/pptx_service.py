@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
-from app.utils.placeholder import infer_placeholder_type, TYPE_MAX_CHARS, extract_placeholder_metadata
+from app.utils.placeholder import infer_placeholder_type, extract_placeholder_metadata
 from app.utils.map_logic import apply_map_logic
 from app.utils.pptx_utils import get_shape_alt_text
 from app.services.image_service import get_company_logo_path, get_topic_image_path, cleanup_temp_images
@@ -49,7 +49,6 @@ def extract_ppt_metadata(template_path: str):
                         "slide_number": slide_index + 1,
                         "shape_index": shape_index,
                         "type": placeholder_type,
-                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100),
                         "paragraphs": paragraphs_count
                     })
 
@@ -72,7 +71,6 @@ def extract_ppt_metadata(template_path: str):
                         "slide_number": slide_index + 1,
                         "shape_index": shape_index,
                         "type": placeholder_type,
-                        "max_chars": TYPE_MAX_CHARS.get(placeholder_type, 100),
                         "paragraphs": paragraphs_count
                     })
 
@@ -254,15 +252,90 @@ def replace_text_preserve_formatting(
 
                 return True
         else:
-            # Handle single value
-            for paragraph in text_frame.paragraphs:
-                if placeholder in paragraph.text:
-                    # Replace placeholder in paragraph
-                    paragraph.text = ""
-                    apply_formatted_text(paragraph, str(value), parser)
-                    return True
+            # Handle single value with marker formatting - use same logic as regular path
+            # but apply formatting from parser
+            replaced = False
 
-        return False
+            for paragraph in text_frame.paragraphs:
+                # Build list of (run, start_index, end_index) for text search
+                run_info = []
+                cumulative_length = 0
+
+                for run in paragraph.runs:
+                    start = cumulative_length
+                    end = start + len(run.text)
+                    run_info.append((run, start, end))
+                    cumulative_length = end
+
+                # Get the full paragraph text
+                full_text = paragraph.text
+
+                # Find placeholder in full text
+                placeholder_start = full_text.find(placeholder)
+                if placeholder_start != -1:
+                    placeholder_end = placeholder_start + len(placeholder)
+
+                    # Find which runs this placeholder spans
+                    affected_runs = []
+                    for run, start, end in run_info:
+                        if not (end <= placeholder_start or start >= placeholder_end):
+                            affected_runs.append((run, start, end))
+
+                    if affected_runs:
+                        # Get formatting info from parser
+                        parsed_runs_data = parser.get_pptx_runs(str(value))
+                        replacement_str = str(value)
+
+                        # If placeholder is within a single run (most common case)
+                        if len(affected_runs) == 1:
+                            run, run_start, run_end = affected_runs[0]
+                            # Calculate position within the run
+                            offset_start = placeholder_start - run_start
+                            offset_end = offset_start + len(placeholder)
+                            # Replace just the placeholder, keep rest of text
+                            run.text = run.text[:offset_start] + replacement_str + run.text[offset_end:]
+
+                            # Apply formatting from parsed runs if available
+                            if len(parsed_runs_data) > 0:
+                                run_data = parsed_runs_data[0]
+                                if run_data.get("color"):
+                                    try:
+                                        r = int(run_data["color"][0:2], 16)
+                                        g = int(run_data["color"][2:4], 16)
+                                        b = int(run_data["color"][4:6], 16)
+                                        run.font.color.rgb = RGBColor(r, g, b)
+                                    except (ValueError, TypeError):
+                                        pass
+                                if run_data.get("bold"):
+                                    run.font.bold = True
+                                if run_data.get("italic"):
+                                    run.font.italic = True
+                        else:
+                            # Placeholder spans multiple runs - clear all and put replacement in first
+                            for run, _, _ in affected_runs:
+                                run.text = ""
+                            first_run = affected_runs[0][0]
+                            first_run.text = replacement_str
+
+                            # Apply formatting
+                            if len(parsed_runs_data) > 0:
+                                run_data = parsed_runs_data[0]
+                                if run_data.get("color"):
+                                    try:
+                                        r = int(run_data["color"][0:2], 16)
+                                        g = int(run_data["color"][2:4], 16)
+                                        b = int(run_data["color"][4:6], 16)
+                                        first_run.font.color.rgb = RGBColor(r, g, b)
+                                    except (ValueError, TypeError):
+                                        pass
+                                if run_data.get("bold"):
+                                    first_run.font.bold = True
+                                if run_data.get("italic"):
+                                    first_run.font.italic = True
+
+                        replaced = True
+
+            return replaced
 
     # Handle list of paragraphs (multi-paragraph values)
     if isinstance(value, list) and len(text_frame.paragraphs) > 0:
