@@ -793,7 +793,7 @@ def set_cell_text_preserve_formatting(
             first_paragraph.space_after = base_paragraph_props["space_after"]
         else:
             # Add visible spacing between array items in table cells
-            first_paragraph.space_after = Pt(6)
+            first_paragraph.space_after = Pt(18)
 
     # Add remaining paragraphs for array items (creates line breaks)
     for idx, paragraph_text in enumerate(paragraphs_to_add[1:]):

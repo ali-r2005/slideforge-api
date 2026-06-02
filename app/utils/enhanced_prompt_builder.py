@@ -154,30 +154,36 @@ Use these parameters to ensure consistency in the generated content."""
 
                         col_label = col_key.replace("_", " ").title()
 
-                        # Pass cell object directly from frontend
+                        # Format cell data for AI - pass actual arrays/values as-is
                         if isinstance(col_value, dict):
-                            obj_items = []
+                            cell_parts = []
 
-                            for cell_key, cell_val in col_value.items():
-                                if cell_val is None or cell_val == "" or cell_val == []:
-                                    continue
+                            # Context array - pass as-is, filter empty strings
+                            context = col_value.get("context", [])
+                            if context and isinstance(context, list):
+                                context_clean = [str(p).strip() for p in context if p and str(p).strip()]
+                                if context_clean:
+                                    context_str = ", ".join([f'"{ctx}"' for ctx in context_clean])
+                                    cell_parts.append(f'"context": [{context_str}]')
 
-                                if cell_key == "team_building" and isinstance(cell_val, dict):
-                                    # For team_building, extract enriched data
-                                    tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(cell_val)
-                                    if tb_enriched:
-                                        obj_items.append(f'"{cell_key}": "{tb_enriched}"')
-                                elif cell_key == "agency_offer" and isinstance(cell_val, list):
-                                    # For offers array
-                                    offers_str = ", ".join([f'"{offer}"' for offer in cell_val if offer])
-                                    obj_items.append(f'"{cell_key}": [{offers_str}]')
-                                elif isinstance(cell_val, str):
-                                    # For text values like context_prompt
-                                    obj_items.append(f'"{cell_key}": "{cell_val}"')
+                            # Team building - extract enriched data if present
+                            team_building = col_value.get("team_building")
+                            if team_building and isinstance(team_building, dict):
+                                tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(team_building)
+                                if tb_enriched:
+                                    cell_parts.append(f'"team_building": "{tb_enriched}"')
 
-                            if obj_items:
-                                obj_str = ", ".join(obj_items)
-                                lines.append(f"    {col_label}: {{{obj_str}}}")
+                            # Agency offers array - pass as-is, filter empty strings
+                            offers = col_value.get("agency_offer", [])
+                            if offers and isinstance(offers, list):
+                                offers_clean = [str(o).strip() for o in offers if o and str(o).strip()]
+                                if offers_clean:
+                                    offers_str = ", ".join([f'"{offer}"' for offer in offers_clean])
+                                    cell_parts.append(f'"agency_offer": [{offers_str}]')
+
+                            if cell_parts:
+                                cell_str = ", ".join(cell_parts)
+                                lines.append(f"    {col_label}: {{{cell_str}}}")
                             else:
                                 lines.append(f"    {col_label}: {{}}")
                         else:
