@@ -173,10 +173,14 @@ Use these parameters to ensure consistency in the generated content.{output_inst
                             cell_struct = field_def.get("cell_structure", {}) if field_def else {}
                             parts_config = cell_struct.get("parts", [])
 
-                            # Process dynamic parts based on schema configuration
-                            for part in parts_config:
-                                #it respect the order of the parts that the user set it in the schema and it should be change to handle the case of when the user change the order of the parts in the frontend with drag and drop feature and the frontend should respect that order 
-                                part_name = part.get("name")
+                            # Process dynamic parts in the order they appear in col_value (respects user's drag-and-drop reordering)
+                            # The frontend sends parts in the order the user set via drag-and-drop, so we iterate through col_value.keys()
+                            part_order = list(col_value.keys()) if isinstance(col_value, dict) else []
+                            for part_name in part_order:
+                                part = next((p for p in parts_config if p.get("name") == part_name), None)
+                                if not part:
+                                    continue
+
                                 part_type = part.get("type")
                                 part_value = col_value.get(part_name)
 
@@ -221,7 +225,7 @@ Use these parameters to ensure consistency in the generated content.{output_inst
     def _build_table_output_instructions(schema: Dict[str, Any] | None = None) -> str:
         """
         Build instructions for AI about table cell output format and order.
-        Specifies the exact order parts should appear in the output array.
+        Tells AI to respect the order of properties from input in the output array.
         """
         if not schema:
             return ""
@@ -234,24 +238,14 @@ Use these parameters to ensure consistency in the generated content.{output_inst
                 continue
 
             cell_struct = field.get("cell_structure", {})
-            parts_config = cell_struct.get("parts", [])
-
-            if not parts_config:
+            if not cell_struct.get("parts"):
                 continue
 
-            # Determine if new format (objects) or old format (strings)
-            if parts_config and isinstance(parts_config[0], dict):
-                # New format: generate output order instruction
-                part_names = [p.get("name") for p in parts_config if p.get("user_provides")]
-
-                if part_names:
-                    field_label = field.get("label", field.get("name"))
-                    order_desc = " → ".join(part_names)
-                    instructions.append(
-                        f"\nFor {field_label}: Return cell content as a flat JSON array "
-                        f"of strings in order: [{order_desc}]. "
-                        f"Each item in the array represents one part or paragraph."
-                    )
+            field_label = field.get("label", field.get("name"))
+            instructions.append(
+                f"\nFor {field_label}: Return cell content as a flat JSON array of strings. "
+                f"IMPORTANT: Respect the property order from the input - return output array in the same property order."
+            )
 
         return "".join(instructions) if instructions else ""
 
