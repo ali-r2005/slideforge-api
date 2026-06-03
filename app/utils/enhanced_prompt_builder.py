@@ -173,58 +173,34 @@ Use these parameters to ensure consistency in the generated content.{output_inst
                             cell_struct = field_def.get("cell_structure", {}) if field_def else {}
                             parts_config = cell_struct.get("parts", [])
 
-                            # Determine if using new format (parts as objects) or old format (string array)
-                            if parts_config and isinstance(parts_config[0], dict):
-                                # New format: parts as array of objects - process dynamically
-                                for part in parts_config:
-                                    part_name = part.get("name")
-                                    part_type = part.get("type")
-                                    part_value = col_value.get(part_name)
+                            # Process dynamic parts based on schema configuration
+                            for part in parts_config:
+                                #it respect the order of the parts that the user set it in the schema and it should be change to handle the case of when the user change the order of the parts in the frontend with drag and drop feature and the frontend should respect that order 
+                                part_name = part.get("name")
+                                part_type = part.get("type")
+                                part_value = col_value.get(part_name)
 
-                                    if not part_value:
-                                        continue
+                                if not part_value:
+                                    continue
 
-                                    if part_type in ("array-textarea", "text", "textarea"):
-                                        # Array-like parts
-                                        if part_type == "array-textarea" and isinstance(part_value, list):
-                                            clean_items = [str(p).strip() for p in part_value if p and str(p).strip()]
-                                            if clean_items:
-                                                items_str = ", ".join([f'"{item}"' for item in clean_items])
-                                                cell_parts.append(f'"{part_name}": [{items_str}]')
-                                        else:
-                                            # Single text value
-                                            cell_parts.append(f'"{part_name}": "{str(part_value).strip()}"')
+                                if part_type in ("array-textarea", "text", "textarea"):
+                                    # Array-like parts
+                                    if part_type == "array-textarea" and isinstance(part_value, list):
+                                        clean_items = [str(p).strip() for p in part_value if p and str(p).strip()]
+                                        if clean_items:
+                                            items_str = ", ".join([f'"{item}"' for item in clean_items])
+                                            cell_parts.append(f'"{part_name}": [{items_str}]')
+                                    else:
+                                        # Single text value
+                                        cell_parts.append(f'"{part_name}": "{str(part_value).strip()}"')
 
-                                    elif part_type == "select":
-                                        # Select parts - enrich from database if available
-                                        if isinstance(part_value, dict):
-                                            enriched = EnhancedPromptBuilder._enrich_team_building_data(part_value)
-                                            if enriched:
-                                                cell_parts.append(f'"{part_name}": "{enriched}"')
-                            else:
-                                # Old format: hardcoded parts (context, team_building, agency_offer) for backward compatibility
-                                # Context array - pass as-is, filter empty strings
-                                context = col_value.get("context", [])
-                                if context and isinstance(context, list):
-                                    context_clean = [str(p).strip() for p in context if p and str(p).strip()]
-                                    if context_clean:
-                                        context_str = ", ".join([f'"{ctx}"' for ctx in context_clean])
-                                        cell_parts.append(f'"context": [{context_str}]')
-
-                                # Team building - extract enriched data if present
-                                team_building = col_value.get("team_building")
-                                if team_building and isinstance(team_building, dict):
-                                    tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(team_building)
-                                    if tb_enriched:
-                                        cell_parts.append(f'"team_building": "{tb_enriched}"')
-
-                                # Agency offers array - pass as-is, filter empty strings
-                                offers = col_value.get("agency_offer", [])
-                                if offers and isinstance(offers, list):
-                                    offers_clean = [str(o).strip() for o in offers if o and str(o).strip()]
-                                    if offers_clean:
-                                        offers_str = ", ".join([f'"{offer}"' for offer in offers_clean])
-                                        cell_parts.append(f'"agency_offer": [{offers_str}]')
+                                elif part_type == "select":
+                                    # Select parts - enrich from database if available
+                                    if isinstance(part_value, dict):
+                                        # it shuld be change it should handele to retrive the data that from the file that the user select it
+                                        enriched = EnhancedPromptBuilder._enrich_team_building_data(part_value)
+                                        if enriched:
+                                            cell_parts.append(f'"{part_name}": "{enriched}"')
 
                             if cell_parts:
                                 cell_str = ", ".join(cell_parts)

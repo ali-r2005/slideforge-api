@@ -8,7 +8,6 @@ from app.services.pptx_service import (
     generate_presentation,
     generate_template_thumbnail
 )
-from app.services.team_building_service import team_building_service
 from app.schemas.generate_schema import GeneratePresentationRequest, UpdatePresentationRequest
 from app.services.ai_service import generate_ai_content
 from app.utils.ai_validation import AIResponseValidationError
@@ -111,16 +110,6 @@ def get_schema(template_name: str):
         "data": schema,
         "has_schema": True,
         "errors": errors
-    }
-
-@router.get("/team-building/activities")
-def get_team_building_activities():
-    """Get all available team building activities from database."""
-    activities = team_building_service.get_all_activities()
-
-    return {
-        "success": True,
-        "data": activities
     }
 
 @router.post("/generate-ppt")
