@@ -16,6 +16,7 @@ from app.utils.template_metadata import load_template_metadata
 from app.utils.schema_loader import load_schema, has_schema
 from app.utils.schema_validator import SchemaValidator
 from app.utils.enhanced_prompt_builder import build_enhanced_prompt
+from app.utils.database_loader import DatabaseLoader
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -61,23 +62,55 @@ def get_templates():
 @router.get("/schema/{template_name}")
 def get_schema(template_name: str):
     """
-    Get the form schema for a template, if it exists.
+    Get the form schema for a template, including database options for select parts.
     Returns empty object if template has no schema (graceful fallback).
+
+    For select type parts, pre-loads database options from DB/{database}.json
     """
     schema = load_schema(template_name)
+    errors = []
 
     if schema is None:
         # No schema found - return empty object (graceful fallback)
         return {
             "success": True,
             "data": None,
-            "has_schema": False
+            "has_schema": False,
+            "errors": []
         }
+
+    # Load database options for select parts in cell_structure
+    if "fields" in schema:
+        for field in schema["fields"]:
+            if field.get("type") == "program_table" and "cell_structure" in field:
+                cell_struct = field["cell_structure"]
+                parts = cell_struct.get("parts", [])
+
+                # Check if new format (parts as array of objects)
+                if parts and isinstance(parts[0], dict):
+                    for part in parts:
+                        if part.get("type") == "select" and "database" in part:
+                            db_name = part["database"]
+                            options, error = DatabaseLoader.get_database_options(db_name)
+
+                            if error:
+                                errors.append({
+                                    "field": field.get("name"),
+                                    "part": part.get("name"),
+                                    "database": db_name,
+                                    "error": error
+                                })
+                                # Set empty options on error
+                                part["options"] = []
+                            else:
+                                # Attach pre-loaded options
+                                part["options"] = options or []
 
     return {
         "success": True,
         "data": schema,
-        "has_schema": True
+        "has_schema": True,
+        "errors": errors
     }
 
 @router.get("/team-building/activities")

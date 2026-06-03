@@ -124,32 +124,8 @@ class SchemaLoader:
 
                 # Validate optional cell_structure if present
                 if "cell_structure" in field:
-                    cell_struct = field["cell_structure"]
-                    if not isinstance(cell_struct, dict):
+                    if not self._validate_cell_structure(field["cell_structure"]):
                         return False
-
-                    # Validate parts array
-                    if "parts" not in cell_struct or not isinstance(cell_struct["parts"], list):
-                        return False
-
-                    valid_parts = {"context", "team_building", "agency_offer"}
-                    for part in cell_struct["parts"]:
-                        if not isinstance(part, str) or part not in valid_parts:
-                            return False
-
-                    # Validate optional ai_generates and user_provides arrays
-                    for key in ["ai_generates", "user_provides"]:
-                        if key in cell_struct:
-                            if not isinstance(cell_struct[key], list):
-                                return False
-                            for item in cell_struct[key]:
-                                if not isinstance(item, str) or item not in valid_parts:
-                                    return False
-
-                    # Validate optional team_building_db flag
-                    if "team_building_db" in cell_struct:
-                        if not isinstance(cell_struct["team_building_db"], bool):
-                            return False
 
         # Validate optional groups if present
         if "groups" in schema:
@@ -169,6 +145,105 @@ class SchemaLoader:
                 for field_name in group["fields"]:
                     if not isinstance(field_name, str):
                         return False
+
+        return True
+
+    def _validate_cell_structure(self, cell_struct: Dict[str, Any]) -> bool:
+        """
+        Validates cell_structure format (both old and new formats).
+
+        Supports:
+        - Old format: parts as array of strings ["context", "team_building", "agency_offer"]
+        - New format: parts as array of objects with name, type, label, etc.
+        """
+        if not isinstance(cell_struct, dict):
+            return False
+
+        if "parts" not in cell_struct or not isinstance(cell_struct["parts"], list):
+            return False
+
+        if len(cell_struct["parts"]) == 0:
+            return False
+
+        parts = cell_struct["parts"]
+
+        # Check if old format (array of strings)
+        if isinstance(parts[0], str):
+            valid_parts = {"context", "team_building", "agency_offer"}
+            for part in parts:
+                if not isinstance(part, str) or part not in valid_parts:
+                    return False
+
+            # Validate optional ai_generates and user_provides arrays
+            for key in ["ai_generates", "user_provides"]:
+                if key in cell_struct:
+                    if not isinstance(cell_struct[key], list):
+                        return False
+                    for item in cell_struct[key]:
+                        if not isinstance(item, str) or item not in valid_parts:
+                            return False
+
+            # Validate optional team_building_db flag
+            if "team_building_db" in cell_struct:
+                if not isinstance(cell_struct["team_building_db"], bool):
+                    return False
+
+        # Check if new format (array of objects)
+        elif isinstance(parts[0], dict):
+            # Validate draggable flag if present (default is false)
+            if "draggable" in cell_struct:
+                if not isinstance(cell_struct["draggable"], bool):
+                    return False
+
+            # Validate each part object
+            part_names = set()
+            for part in parts:
+                if not isinstance(part, dict):
+                    return False
+
+                # Required fields for each part
+                required_keys = {"name", "type", "label"}
+                if not required_keys.issubset(part.keys()):
+                    return False
+
+                # Validate name is string and unique
+                if not isinstance(part["name"], str):
+                    return False
+                if part["name"] in part_names:
+                    return False  # Duplicate part names not allowed
+                part_names.add(part["name"])
+
+                # Validate type is valid
+                valid_types = {"array-textarea", "select", "textarea", "text", "dropdown"}
+                if part["type"] not in valid_types:
+                    return False
+
+                # Validate label is string
+                if not isinstance(part["label"], str):
+                    return False
+
+                # Validate optional required field
+                if "required" in part:
+                    if not isinstance(part["required"], bool):
+                        return False
+
+                # Validate optional ai_generates field
+                if "ai_generates" in part:
+                    if not isinstance(part["ai_generates"], bool):
+                        return False
+
+                # Validate optional user_provides field
+                if "user_provides" in part:
+                    if not isinstance(part["user_provides"], bool):
+                        return False
+
+                # For select type parts, validate database field exists
+                if part["type"] == "select":
+                    if "database" not in part or not isinstance(part["database"], str):
+                        return False
+
+        else:
+            return False
 
         return True
 

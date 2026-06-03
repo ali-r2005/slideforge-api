@@ -137,28 +137,59 @@ class SchemaValidator:
 
                         col_value = row[col_key]
 
-                        # Handle new cell_structure format (nested object with context, team_building, agency_offer)
+                        # Handle new cell_structure format (nested object with parts)
                         if has_cell_structure:
                             if isinstance(col_value, dict):
-                                # Validate context if present - must be array of strings
-                                if "context" in col_value:
-                                    if not isinstance(col_value["context"], list):
-                                        return f"Field '{field_name}' row {idx} column '{col_key}' context must be an array"
-                                    if not all(isinstance(item, str) for item in col_value["context"]):
-                                        return f"Field '{field_name}' row {idx} column '{col_key}' context items must be strings"
+                                # Validate based on cell_structure parts
+                                cell_struct = field.get("cell_structure", {})
+                                parts = cell_struct.get("parts", [])
 
-                                # Validate team_building if present - must be object or null
-                                if "team_building" in col_value:
-                                    tb = col_value["team_building"]
-                                    if tb is not None and not isinstance(tb, dict):
-                                        return f"Field '{field_name}' row {idx} column '{col_key}' team_building must be object or null"
+                                # Determine if old format (string array) or new format (object array)
+                                if parts and isinstance(parts[0], dict):
+                                    # New format: validate parts by name
+                                    for part in parts:
+                                        part_name = part.get("name")
+                                        part_type = part.get("type")
+                                        if part_name not in col_value:
+                                            continue  # Optional parts don't need to be present
 
-                                # Validate agency_offer if present - must be array of strings
-                                if "agency_offer" in col_value:
-                                    if not isinstance(col_value["agency_offer"], list):
-                                        return f"Field '{field_name}' row {idx} column '{col_key}' agency_offer must be an array"
-                                    if not all(isinstance(item, str) for item in col_value["agency_offer"]):
-                                        return f"Field '{field_name}' row {idx} column '{col_key}' agency_offer items must be strings"
+                                        part_value = col_value[part_name]
+
+                                        # Validate based on part type
+                                        if part_type in ("array-textarea", "text", "textarea"):
+                                            if part_type == "array-textarea":
+                                                if part_value is not None and not isinstance(part_value, list):
+                                                    return f"Field '{field_name}' row {idx} column '{col_key}' part '{part_name}' must be array or null"
+                                                if part_value and not all(isinstance(item, str) for item in part_value):
+                                                    return f"Field '{field_name}' row {idx} column '{col_key}' part '{part_name}' items must be strings"
+                                            elif part_type in ("text", "textarea"):
+                                                if part_value is not None and not isinstance(part_value, str):
+                                                    return f"Field '{field_name}' row {idx} column '{col_key}' part '{part_name}' must be string or null"
+
+                                        elif part_type == "select":
+                                            if part_value is not None and not isinstance(part_value, dict):
+                                                return f"Field '{field_name}' row {idx} column '{col_key}' part '{part_name}' must be object or null"
+                                else:
+                                    # Old format: validate hardcoded parts (context, team_building, agency_offer)
+                                    # Validate context if present - must be array of strings
+                                    if "context" in col_value:
+                                        if not isinstance(col_value["context"], list):
+                                            return f"Field '{field_name}' row {idx} column '{col_key}' context must be an array"
+                                        if not all(isinstance(item, str) for item in col_value["context"]):
+                                            return f"Field '{field_name}' row {idx} column '{col_key}' context items must be strings"
+
+                                    # Validate team_building if present - must be object or null
+                                    if "team_building" in col_value:
+                                        tb = col_value["team_building"]
+                                        if tb is not None and not isinstance(tb, dict):
+                                            return f"Field '{field_name}' row {idx} column '{col_key}' team_building must be object or null"
+
+                                    # Validate agency_offer if present - must be array of strings
+                                    if "agency_offer" in col_value:
+                                        if not isinstance(col_value["agency_offer"], list):
+                                            return f"Field '{field_name}' row {idx} column '{col_key}' agency_offer must be an array"
+                                        if not all(isinstance(item, str) for item in col_value["agency_offer"]):
+                                            return f"Field '{field_name}' row {idx} column '{col_key}' agency_offer items must be strings"
                             elif isinstance(col_value, str):
                                 # Support legacy simple string cells for backward compatibility
                                 pass

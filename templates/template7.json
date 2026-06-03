@@ -71,10 +71,34 @@
         "date_range_end_field": "event_end_date",
         "columns": ["Matinée", "Midi", "Après-midi", "Soir"],
         "cell_structure": {
-          "parts": ["context", "team_building", "agency_offer"],
-          "ai_generates": ["context"],
-          "user_provides": ["context", "agency_offer"],
-          "team_building_db": true
+          "draggable": true,
+          "parts": [
+            {
+              "name": "context",
+              "type": "array-textarea",
+              "label": "Context/Setup",
+              "required": true,
+              "ai_generates": true,
+              "user_provides": true
+            },
+            {
+              "name": "team_building",
+              "type": "select",
+              "label": "Team Building",
+              "database": "tb",
+              "required": false,
+              "ai_generates": false,
+              "user_provides": true
+            },
+            {
+              "name": "agency_offer",
+              "type": "array-textarea",
+              "label": "Agency Offers",
+              "required": false,
+              "ai_generates": true,
+              "user_provides": true
+            }
+          ]
         }
       }
     ],

@@ -99,6 +99,9 @@ class EnhancedPromptBuilder:
             form_data, schema
         )
 
+        # Build output format instructions for table parts
+        output_instructions = EnhancedPromptBuilder._build_table_output_instructions(schema)
+
         # Combine into final prompt
         enhanced_prompt = f"""{user_prompt}
 
@@ -107,7 +110,7 @@ Structured Parameters:
 
 IMPORTANT: Treat the above Structured Parameters as strict constraints.
 If the user request conflicts with any parameter, prioritize the parameter values.
-Use these parameters to ensure consistency in the generated content."""
+Use these parameters to ensure consistency in the generated content.{output_instructions}"""
 
         return enhanced_prompt.strip()
 
@@ -158,28 +161,70 @@ Use these parameters to ensure consistency in the generated content."""
                         if isinstance(col_value, dict):
                             cell_parts = []
 
-                            # Context array - pass as-is, filter empty strings
-                            context = col_value.get("context", [])
-                            if context and isinstance(context, list):
-                                context_clean = [str(p).strip() for p in context if p and str(p).strip()]
-                                if context_clean:
-                                    context_str = ", ".join([f'"{ctx}"' for ctx in context_clean])
-                                    cell_parts.append(f'"context": [{context_str}]')
+                            # Get the field definition to find cell_structure
+                            field_def = None
+                            if schema:
+                                for f in schema.get("fields", []):
+                                    if f.get("name") == key:
+                                        field_def = f
+                                        break
 
-                            # Team building - extract enriched data if present
-                            team_building = col_value.get("team_building")
-                            if team_building and isinstance(team_building, dict):
-                                tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(team_building)
-                                if tb_enriched:
-                                    cell_parts.append(f'"team_building": "{tb_enriched}"')
+                            # Get cell_structure to determine dynamic parts
+                            cell_struct = field_def.get("cell_structure", {}) if field_def else {}
+                            parts_config = cell_struct.get("parts", [])
 
-                            # Agency offers array - pass as-is, filter empty strings
-                            offers = col_value.get("agency_offer", [])
-                            if offers and isinstance(offers, list):
-                                offers_clean = [str(o).strip() for o in offers if o and str(o).strip()]
-                                if offers_clean:
-                                    offers_str = ", ".join([f'"{offer}"' for offer in offers_clean])
-                                    cell_parts.append(f'"agency_offer": [{offers_str}]')
+                            # Determine if using new format (parts as objects) or old format (string array)
+                            if parts_config and isinstance(parts_config[0], dict):
+                                # New format: parts as array of objects - process dynamically
+                                for part in parts_config:
+                                    part_name = part.get("name")
+                                    part_type = part.get("type")
+                                    part_value = col_value.get(part_name)
+
+                                    if not part_value:
+                                        continue
+
+                                    if part_type in ("array-textarea", "text", "textarea"):
+                                        # Array-like parts
+                                        if part_type == "array-textarea" and isinstance(part_value, list):
+                                            clean_items = [str(p).strip() for p in part_value if p and str(p).strip()]
+                                            if clean_items:
+                                                items_str = ", ".join([f'"{item}"' for item in clean_items])
+                                                cell_parts.append(f'"{part_name}": [{items_str}]')
+                                        else:
+                                            # Single text value
+                                            cell_parts.append(f'"{part_name}": "{str(part_value).strip()}"')
+
+                                    elif part_type == "select":
+                                        # Select parts - enrich from database if available
+                                        if isinstance(part_value, dict):
+                                            enriched = EnhancedPromptBuilder._enrich_team_building_data(part_value)
+                                            if enriched:
+                                                cell_parts.append(f'"{part_name}": "{enriched}"')
+                            else:
+                                # Old format: hardcoded parts (context, team_building, agency_offer) for backward compatibility
+                                # Context array - pass as-is, filter empty strings
+                                context = col_value.get("context", [])
+                                if context and isinstance(context, list):
+                                    context_clean = [str(p).strip() for p in context if p and str(p).strip()]
+                                    if context_clean:
+                                        context_str = ", ".join([f'"{ctx}"' for ctx in context_clean])
+                                        cell_parts.append(f'"context": [{context_str}]')
+
+                                # Team building - extract enriched data if present
+                                team_building = col_value.get("team_building")
+                                if team_building and isinstance(team_building, dict):
+                                    tb_enriched = EnhancedPromptBuilder._enrich_team_building_data(team_building)
+                                    if tb_enriched:
+                                        cell_parts.append(f'"team_building": "{tb_enriched}"')
+
+                                # Agency offers array - pass as-is, filter empty strings
+                                offers = col_value.get("agency_offer", [])
+                                if offers and isinstance(offers, list):
+                                    offers_clean = [str(o).strip() for o in offers if o and str(o).strip()]
+                                    if offers_clean:
+                                        offers_str = ", ".join([f'"{offer}"' for offer in offers_clean])
+                                        cell_parts.append(f'"agency_offer": [{offers_str}]')
 
                             if cell_parts:
                                 cell_str = ", ".join(cell_parts)
@@ -195,6 +240,44 @@ Use these parameters to ensure consistency in the generated content."""
                 lines.append(f"- {label}: {formatted_value}")
 
         return "\n".join(lines) if lines else "(No parameters provided)"
+
+    @staticmethod
+    def _build_table_output_instructions(schema: Dict[str, Any] | None = None) -> str:
+        """
+        Build instructions for AI about table cell output format and order.
+        Specifies the exact order parts should appear in the output array.
+        """
+        if not schema:
+            return ""
+
+        instructions = []
+
+        # Find program_table fields with cell_structure
+        for field in schema.get("fields", []):
+            if field.get("type") != "program_table":
+                continue
+
+            cell_struct = field.get("cell_structure", {})
+            parts_config = cell_struct.get("parts", [])
+
+            if not parts_config:
+                continue
+
+            # Determine if new format (objects) or old format (strings)
+            if parts_config and isinstance(parts_config[0], dict):
+                # New format: generate output order instruction
+                part_names = [p.get("name") for p in parts_config if p.get("user_provides")]
+
+                if part_names:
+                    field_label = field.get("label", field.get("name"))
+                    order_desc = " → ".join(part_names)
+                    instructions.append(
+                        f"\nFor {field_label}: Return cell content as a flat JSON array "
+                        f"of strings in order: [{order_desc}]. "
+                        f"Each item in the array represents one part or paragraph."
+                    )
+
+        return "".join(instructions) if instructions else ""
 
     @staticmethod
     def _format_label(field_name: str) -> str:
