@@ -110,7 +110,7 @@ class SchemaValidator:
                     else:
                         return f"Field '{field_name}' must be a boolean"
 
-            elif field_type == "program_table":
+            elif field_type == "table" or (field_type is not None and field.get("cell_structure") is not None):
                 if not isinstance(value, list):
                     return f"Field '{field_name}' must be an array"
 

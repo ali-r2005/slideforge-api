@@ -95,15 +95,15 @@ class SchemaLoader:
                 return False
 
             # Validate field type
-            valid_types = {"text", "textarea", "number", "email", "date", "enum", "boolean", "program_table"}
+            valid_types = {"text", "textarea", "number", "email", "date", "enum", "boolean", "table"}
             if field["type"] not in valid_types:
                 return False
 
-        # Validate program_table specific requirements
+        # Validate table specific requirements
         all_field_names = {f["name"] for f in schema["fields"]}
         for field in schema["fields"]:
-            if field["type"] == "program_table":
-                # program_table requires date_range fields and columns
+            if field["type"] == "table":
+                # table type requires date_range fields and columns
                 if "date_range_start_field" not in field or "date_range_end_field" not in field:
                     return False
                 if "columns" not in field or not isinstance(field["columns"], list):

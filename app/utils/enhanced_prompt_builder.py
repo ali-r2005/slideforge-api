@@ -142,9 +142,9 @@ Use these parameters to ensure consistency in the generated content.{output_inst
             # Get label if available
             label = field_labels.get(key, EnhancedPromptBuilder._format_label(key))
 
-            # Special handling for program_table type
+            # Special handling for table type
             field_type = field_types.get(key)
-            if field_type == "program_table" and isinstance(value, list):
+            if (field_type == "table" or (field_type and value)) and isinstance(value, list):
                 lines.append(f"- {label}:")
                 for row in value:
                     date = row.get("date", "Unknown Date")
@@ -252,9 +252,9 @@ Use these parameters to ensure consistency in the generated content.{output_inst
 
         instructions = []
 
-        # Find program_table fields with cell_structure
+        # Find table fields with cell_structure
         for field in schema.get("fields", []):
-            if field.get("type") != "program_table":
+            if field.get("type") != "table" and not field.get("cell_structure"):
                 continue
 
             cell_struct = field.get("cell_structure", {})

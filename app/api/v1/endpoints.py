@@ -82,7 +82,7 @@ def get_schema(template_name: str):
     # Load database options for select parts in cell_structure
     if "fields" in schema:
         for field in schema["fields"]:
-            if field.get("type") == "program_table" and "cell_structure" in field:
+            if (field.get("type") == "table" or field.get("cell_structure")) and "cell_structure" in field:
                 cell_struct = field["cell_structure"]
                 parts = cell_struct.get("parts", [])
 

@@ -63,7 +63,7 @@
       },
       {
         "name": "program_schedule",
-        "type": "program_table",
+        "type": "table",
         "required": true,
         "label": "Program Schedule",
         "description": "Plan activities for each time slot of each day",
@@ -92,7 +92,7 @@
             },
             {
               "name": "agency_offer",
-              "type": "array-textarea",
+              "type": "textarea",
               "label": "Agency Offers",
               "required": false,
               "ai_generates": true,
