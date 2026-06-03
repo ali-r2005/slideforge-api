@@ -212,9 +212,11 @@ def set_cell_text_preserve_formatting(
     if first_paragraph.runs:
         first_run = first_paragraph.runs[0]
         base_font_props = {
+            "name": first_run.font.name,
             "size": first_run.font.size,
             "bold": first_run.font.bold,
             "italic": first_run.font.italic,
+            "underline": first_run.font.underline,
             "color": first_run.font.color.rgb if hasattr(first_run.font.color, 'rgb') else None
         }
 
@@ -273,18 +275,17 @@ def set_cell_text_preserve_formatting(
             from app.services.pptx_service import apply_formatted_text
             apply_formatted_text(new_paragraph, paragraph_text, parser, base_font_props)
         else:
-            # Plain text
-            new_paragraph.text = paragraph_text
-            # Preserve formatting from the first paragraph if possible
+            # Plain text - preserve formatting from the first paragraph
             if first_paragraph.runs:
-                for run in new_paragraph.runs:
-                    first_run = first_paragraph.runs[0]
-                    if first_run.font.size:
-                        run.font.size = first_run.font.size
-                    if first_run.font.bold is not None:
-                        run.font.bold = first_run.font.bold
-                    if first_run.font.italic is not None:
-                        run.font.italic = first_run.font.italic
+                first_run = first_paragraph.runs[0]
+                # Add run with text and copy ALL formatting from the template
+                run = new_paragraph.add_run(paragraph_text)
+                # Use copy_run_formatting to properly handle all font properties
+                from app.services.pptx_service import copy_run_formatting
+                copy_run_formatting(first_run, run)
+            else:
+                # Fallback if no runs in template
+                new_paragraph.text = paragraph_text
 
 
 def apply_cell_formatting(cell, formatting):

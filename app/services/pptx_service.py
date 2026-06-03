@@ -110,17 +110,24 @@ def extract_ppt_metadata(template_path: str):
 def copy_run_formatting(source_run, target_run):
     """
     Copies all font formatting from source_run to target_run.
+    Only copies properties that are explicitly set (not None) to avoid resetting to defaults.
     """
     source_font = source_run.font
     target_font = target_run.font
 
-    target_font.name = source_font.name
-    target_font.size = source_font.size
-    target_font.bold = source_font.bold
-    target_font.italic = source_font.italic
-    target_font.underline = source_font.underline
+    # Copy properties only if they are explicitly set (not None/inherited)
+    if source_font.name is not None:
+        target_font.name = source_font.name
+    if source_font.size is not None:
+        target_font.size = source_font.size
+    if source_font.bold is not None:
+        target_font.bold = source_font.bold
+    if source_font.italic is not None:
+        target_font.italic = source_font.italic
+    if source_font.underline is not None:
+        target_font.underline = source_font.underline
 
-    # Copy color
+    # Copy color if it exists
     if source_font.color:
         try:
             if hasattr(source_font.color, 'rgb'):
@@ -148,9 +155,11 @@ def apply_formatted_text(paragraph, text: str, parser, base_font_props: Optional
         if paragraph.runs:
             first_run = paragraph.runs[0]
             base_font_props = {
+                "name": first_run.font.name,
                 "size": first_run.font.size,
                 "bold": first_run.font.bold,
                 "italic": first_run.font.italic,
+                "underline": first_run.font.underline,
                 "color": first_run.font.color.rgb if hasattr(first_run.font.color, 'rgb') else None
             }
 
@@ -165,13 +174,18 @@ def apply_formatted_text(paragraph, text: str, parser, base_font_props: Optional
         run.text = run_data["text"]
 
         # Start with base font properties (placeholder font)
-        if base_font_props.get("size"):
+        # Only apply if the property was explicitly set (not None)
+        if base_font_props.get("name") is not None:
+            run.font.name = base_font_props["name"]
+        if base_font_props.get("size") is not None:
             run.font.size = base_font_props["size"]
         if base_font_props.get("bold") is not None:
             run.font.bold = base_font_props["bold"]
         if base_font_props.get("italic") is not None:
             run.font.italic = base_font_props["italic"]
-        if base_font_props.get("color"):
+        if base_font_props.get("underline") is not None:
+            run.font.underline = base_font_props["underline"]
+        if base_font_props.get("color") is not None:
             run.font.color.rgb = base_font_props["color"]
 
         # Override with marker-specific formatting (only if marker style is defined)
@@ -243,15 +257,34 @@ def replace_text_preserve_formatting(
             if placeholder_para_idx is not None:
                 template_paragraph = text_frame.paragraphs[placeholder_para_idx]
 
+                # Extract base font properties from template for all new paragraphs
+                base_font_props = {}
+                if template_paragraph.runs:
+                    first_run = template_paragraph.runs[0]
+                    base_font_props = {
+                        "name": first_run.font.name,
+                        "size": first_run.font.size,
+                        "bold": first_run.font.bold,
+                        "italic": first_run.font.italic,
+                        "underline": first_run.font.underline,
+                        "color": first_run.font.color.rgb if hasattr(first_run.font.color, 'rgb') else None
+                    }
+
                 # Add each value with formatting
                 for i, val in enumerate(value):
                     if i == 0:
                         para = template_paragraph
                     else:
                         para = text_frame.add_paragraph()
+                        # Copy paragraph-level formatting from template
+                        para.alignment = template_paragraph.alignment
+                        para.level = template_paragraph.level
+                        para.space_before = template_paragraph.space_before
+                        para.space_after = template_paragraph.space_after
+                        para.line_spacing = template_paragraph.line_spacing
 
-                    # Apply formatted text
-                    apply_formatted_text(para, str(val), parser)
+                    # Apply formatted text with base font properties
+                    apply_formatted_text(para, str(val), parser, base_font_props)
 
                 return True
         else:

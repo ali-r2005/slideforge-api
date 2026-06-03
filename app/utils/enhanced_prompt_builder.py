@@ -225,7 +225,7 @@ Use these parameters to ensure consistency in the generated content.{output_inst
     def _build_table_output_instructions(schema: Dict[str, Any] | None = None) -> str:
         """
         Build instructions for AI about table cell output format and order.
-        Tells AI to respect the order of properties from input in the output array.
+        Tells AI to respect the order of properties from input in the output array like respecting the parts of the cell when generating the output of each cell in table the parts are the properties of the object of the cell.
         """
         if not schema:
             return ""
