@@ -1,0 +1,97 @@
+{
+  "name": "template",
+  "description": "Event program schedule template with structured program planning",
+  "system_instructions": "Generate engaging and practical event program content that highlights activities, locations, and team-building opportunities. Be concise and specific. IMPORTANT: Generate ALL content in the language specified in the 'language' parameter (english or french). If language is 'french', respond entirely in French. If language is 'english', respond entirely in English.",
+  "tone": "professional and clear",
+
+  "schema": {
+    "fields": [
+      {
+        "name": "comapany_name",
+        "type": "text",
+        "required": true,
+        "label": "Company Name",
+        "description": "Name of your company",
+        "max_length": 100
+      },
+      {
+        "name": "event_name",
+        "type": "text",
+        "required": true,
+        "label": "Event Name",
+        "description": "Name of your event",
+        "max_length": 100
+      },
+      {
+        "name": "event_description",
+        "type": "textarea",
+        "required": false,
+        "label": "Event Description",
+        "description": "Brief description of the event",
+        "max_length": 300
+      },
+      {
+        "name": "event_start_date",
+        "type": "date",
+        "required": true,
+        "label": "Event Start Date",
+        "description": "First day of the event"
+      },
+      {
+        "name": "event_end_date",
+        "type": "date",
+        "required": false,
+        "label": "Event End Date",
+        "description": "Last day of the event (leave empty for single-day events)"
+      },
+      {
+        "name": "location",
+        "type": "text",
+        "required": false,
+        "label": "Event Location",
+        "description": "Where the event will be held",
+        "max_length": 200
+      },
+      {
+        "name": "program_schedule",
+        "type": "table",
+        "required": true,
+        "label": "Program Schedule",
+        "description": "Plan activities for each time slot of each day",
+        "row_source": {
+          "type": "user_provided"
+        },
+        "columns": ["Matinée", "Midi", "Après-midi", "Soir"],
+        "cell_structure": {
+          "draggable": true,
+          "parts": [
+            {
+              "name": "context",
+              "type": "array-textarea",
+              "label": "Context/Setup",
+              "required": true,
+              "ai_generates": true,
+              "user_provides": true
+            } ]
+        }
+      }
+    ],
+    "groups": [
+      {
+        "name": "Event Details",
+        "description": "Basic event information and dates",
+        "fields": ["language", "comapany_name", "event_name", "event_description", "event_start_date", "event_end_date", "location"]
+      },
+      {
+        "name": "Program Schedule",
+        "description": "Define activities for each time slot across event days",
+        "fields": ["program_schedule"]
+      }
+    ]
+  },
+
+  "constraints": {
+    "focus_on": ["event flow", "practical logistics", "team engagement", "clear timing"],
+    "keep_professional": true
+  }
+}

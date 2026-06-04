@@ -103,9 +103,7 @@ class SchemaLoader:
         all_field_names = {f["name"] for f in schema["fields"]}
         for field in schema["fields"]:
             if field["type"] == "table":
-                # table type requires date_range fields and columns
-                if "date_range_start_field" not in field or "date_range_end_field" not in field:
-                    return False
+                # Tables require columns
                 if "columns" not in field or not isinstance(field["columns"], list):
                     return False
                 if len(field["columns"]) == 0:
@@ -116,10 +114,42 @@ class SchemaLoader:
                     if not isinstance(col, str):
                         return False
 
-                # Validate referenced date fields exist
-                if field["date_range_start_field"] not in all_field_names:
+                # Validate row_source configuration (schema-driven row generation)
+                if "row_source" not in field:
+                    logger.error(f"Table field '{field['name']}' missing 'row_source' configuration")
                     return False
-                if field["date_range_end_field"] not in all_field_names:
+
+                row_source = field["row_source"]
+                if not isinstance(row_source, dict):
+                    logger.error(f"Table field '{field['name']}' row_source must be an object")
+                    return False
+
+                row_type = row_source.get("type")
+                config = row_source.get("config", {})
+
+                # Validate based on row_source type
+                if row_type == "date_range":
+                    # date_range requires start_field and end_field in config
+                    if "start_field" not in config or "end_field" not in config:
+                        logger.error(f"Table '{field['name']}' row_source type 'date_range' requires config.start_field and config.end_field")
+                        return False
+                    # Validate that referenced date fields exist
+                    if config["start_field"] not in all_field_names:
+                        logger.error(f"Table '{field['name']}' references unknown field: {config['start_field']}")
+                        return False
+                    if config["end_field"] not in all_field_names:
+                        logger.error(f"Table '{field['name']}' references unknown field: {config['end_field']}")
+                        return False
+                elif row_type == "fixed":
+                    # fixed requires count in config
+                    if "count" not in config or not isinstance(config["count"], int) or config["count"] <= 0:
+                        logger.error(f"Table '{field['name']}' row_source type 'fixed' requires config.count (positive integer)")
+                        return False
+                elif row_type == "user_provided":
+                    # user_provided has no special config requirements
+                    pass
+                else:
+                    logger.error(f"Table '{field['name']}' has unknown row_source type: {row_type}")
                     return False
 
                 # Validate optional cell_structure if present

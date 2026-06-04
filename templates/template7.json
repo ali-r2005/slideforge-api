@@ -67,8 +67,13 @@
         "required": true,
         "label": "Program Schedule",
         "description": "Plan activities for each time slot of each day",
-        "date_range_start_field": "event_start_date",
-        "date_range_end_field": "event_end_date",
+        "row_source": {
+          "type": "date_range",
+          "config": {
+            "start_field": "event_start_date",
+            "end_field": "event_end_date"
+          }
+        },
         "columns": ["Matinée", "Midi", "Après-midi", "Soir"],
         "cell_structure": {
           "draggable": true,

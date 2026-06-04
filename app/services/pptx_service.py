@@ -618,12 +618,13 @@ def generate_presentation(
                         if query:
                             img_path = get_topic_image_path(query)
                             if img_path:
-                                # Add the picture with shape width only (crops to shape height)
+                                # Add the picture at the same position and size, covering exactly the shape area
                                 slide.shapes.add_picture(
                                     img_path,
                                     shape.left,
                                     shape.top,
-                                    width=shape.width
+                                    width=shape.width,
+                                    height=shape.height
                                 )
                                 shapes_to_remove.append((slide, shape))
 

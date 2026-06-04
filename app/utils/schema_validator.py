@@ -117,18 +117,25 @@ class SchemaValidator:
                 expected_columns = set(field.get("columns", []))
                 has_cell_structure = "cell_structure" in field
 
+                # Determine if date is required based on row_source type
+                row_source = field.get("row_source", {})
+                row_type = row_source.get("type", "user_provided")
+                requires_date = row_type == "date_range"
+
                 for idx, row in enumerate(value):
                     if not isinstance(row, dict):
                         return f"Field '{field_name}' row {idx} must be an object"
 
-                    if "date" not in row:
-                        return f"Field '{field_name}' row {idx} missing 'date' key"
+                    # Only validate date for date_range row_source type
+                    if requires_date:
+                        if "date" not in row:
+                            return f"Field '{field_name}' row {idx} missing 'date' key"
 
-                    # Validate date format
-                    try:
-                        datetime.strptime(row["date"], "%Y-%m-%d")
-                    except (ValueError, TypeError):
-                        return f"Field '{field_name}' row {idx} date must be valid ISO format (YYYY-MM-DD)"
+                        # Validate date format
+                        try:
+                            datetime.strptime(row["date"], "%Y-%m-%d")
+                        except (ValueError, TypeError):
+                            return f"Field '{field_name}' row {idx} date must be valid ISO format (YYYY-MM-DD)"
 
                     # Check all columns exist
                     for col_key in expected_columns:
