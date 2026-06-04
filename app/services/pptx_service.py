@@ -107,6 +107,44 @@ def extract_ppt_metadata(template_path: str):
 
     return slides_data
 
+def insert_paragraph_after(reference_paragraph, text_frame):
+    """
+    Inserts a new, empty paragraph immediately AFTER the given reference paragraph
+    in the text frame, and returns it as a python-pptx paragraph object.
+
+    python-pptx's text_frame.add_paragraph() always appends to the END of the text
+    frame. When a template has a trailing empty paragraph after the placeholder line,
+    appending puts new paragraphs after that empty one, stranding it between the
+    first and second generated paragraphs and creating an inconsistent gap.
+    Inserting right after the reference paragraph keeps generated paragraphs contiguous.
+    """
+    from pptx.oxml.ns import qn
+    import copy as _copy
+
+    ref_p = reference_paragraph._p
+    # Build a fresh empty <a:p> element (no runs, no pPr) to avoid inheriting
+    # run-level content; paragraph-level props are applied by the caller.
+    new_p = ref_p.makeelement(qn('a:p'), {})
+    ref_p.addnext(new_p)
+
+    # Wrap the raw XML element in a python-pptx _Paragraph proxy.
+    from pptx.text.text import _Paragraph
+    return _Paragraph(new_p, reference_paragraph._parent)
+
+
+def remove_empty_paragraphs(text_frame):
+    """
+    Removes empty paragraphs (no text content) from a text frame.
+    Used to clean up leftover template paragraphs that would otherwise create
+    inconsistent vertical spacing between generated paragraphs.
+    """
+    paragraphs = text_frame.paragraphs
+    # Never remove the very last paragraph if it's the only one left.
+    for p in list(paragraphs):
+        if not p.text.strip() and len(text_frame.paragraphs) > 1:
+            p._p.getparent().remove(p._p)
+
+
 def copy_run_formatting(source_run, target_run):
     """
     Copies all font formatting from source_run to target_run.
@@ -257,8 +295,15 @@ def replace_text_preserve_formatting(
             if placeholder_para_idx is not None:
                 template_paragraph = text_frame.paragraphs[placeholder_para_idx]
 
-                # Extract base font properties from template for all new paragraphs
+                # Extract base font properties and paragraph formatting from template
                 base_font_props = {}
+                base_paragraph_props = {
+                    "alignment": template_paragraph.alignment,
+                    "level": template_paragraph.level,
+                    "space_before": template_paragraph.space_before,
+                    "space_after": template_paragraph.space_after,
+                    "line_spacing": template_paragraph.line_spacing
+                }
                 if template_paragraph.runs:
                     first_run = template_paragraph.runs[0]
                     base_font_props = {
@@ -270,21 +315,45 @@ def replace_text_preserve_formatting(
                         "color": first_run.font.color.rgb if hasattr(first_run.font.color, 'rgb') else None
                     }
 
-                # Add each value with formatting
+                # Define consistent spacing for all paragraphs
+                from pptx.util import Pt
+                default_spacing = Pt(18)
+
+                def _apply_para_props(p):
+                    # Apply uniform paragraph-level formatting so every gap is identical.
+                    if base_paragraph_props["alignment"] is not None:
+                        p.alignment = base_paragraph_props["alignment"]
+                    if base_paragraph_props["level"] is not None:
+                        p.level = base_paragraph_props["level"]
+                    if base_paragraph_props["space_before"] is not None:
+                        p.space_before = base_paragraph_props["space_before"]
+                    if base_paragraph_props["space_after"] is not None and base_paragraph_props["space_after"] > Pt(0):
+                        p.space_after = base_paragraph_props["space_after"]
+                    else:
+                        p.space_after = default_spacing
+                    if base_paragraph_props["line_spacing"] is not None:
+                        p.line_spacing = base_paragraph_props["line_spacing"]
+
+                # Add each value with formatting. New paragraphs are inserted
+                # immediately after the previous one so they stay contiguous and
+                # the template's trailing empty paragraph cannot land between them.
+                prev_para = None
                 for i, val in enumerate(value):
                     if i == 0:
                         para = template_paragraph
+                        if len(value) > 1:
+                            _apply_para_props(para)
                     else:
-                        para = text_frame.add_paragraph()
-                        # Copy paragraph-level formatting from template
-                        para.alignment = template_paragraph.alignment
-                        para.level = template_paragraph.level
-                        para.space_before = template_paragraph.space_before
-                        para.space_after = template_paragraph.space_after
-                        para.line_spacing = template_paragraph.line_spacing
+                        para = insert_paragraph_after(prev_para, text_frame)
+                        _apply_para_props(para)
 
                     # Apply formatted text with base font properties
                     apply_formatted_text(para, str(val), parser, base_font_props)
+                    prev_para = para
+
+                # Remove any leftover empty template paragraphs (e.g. trailing blank
+                # line after the placeholder) that would create uneven spacing.
+                remove_empty_paragraphs(text_frame)
 
                 return True
         else:
@@ -390,18 +459,51 @@ def replace_text_preserve_formatting(
         if placeholder_para_idx is not None:
             template_paragraph = text_frame.paragraphs[placeholder_para_idx]
 
+            # Extract paragraph formatting from template
+            base_paragraph_props = {
+                "alignment": template_paragraph.alignment,
+                "level": template_paragraph.level,
+                "space_before": template_paragraph.space_before,
+                "space_after": template_paragraph.space_after,
+                "line_spacing": template_paragraph.line_spacing
+            }
+
+            # Define consistent spacing for all paragraphs
+            from pptx.util import Pt
+            default_spacing = Pt(18)
+
+            def _apply_para_props(p):
+                # Apply uniform paragraph-level formatting so every gap is identical.
+                if base_paragraph_props["alignment"] is not None:
+                    p.alignment = base_paragraph_props["alignment"]
+                if base_paragraph_props["level"] is not None:
+                    p.level = base_paragraph_props["level"]
+                if base_paragraph_props["space_before"] is not None:
+                    p.space_before = base_paragraph_props["space_before"]
+                if base_paragraph_props["space_after"] is not None and base_paragraph_props["space_after"] > Pt(0):
+                    p.space_after = base_paragraph_props["space_after"]
+                else:
+                    p.space_after = default_spacing
+                if base_paragraph_props["line_spacing"] is not None:
+                    p.line_spacing = base_paragraph_props["line_spacing"]
+
             # Clear the placeholder paragraph
             for run in list(template_paragraph.runs):
                 run.text = ""
 
-            # Add each paragraph from the list
+            # Add each paragraph from the list. New paragraphs are inserted
+            # immediately after the previous one so they stay contiguous and the
+            # template's trailing empty paragraph cannot land between them.
+            prev_para = None
             for i, para_text in enumerate(value):
                 if i == 0:
                     # Use the existing paragraph with the placeholder
                     para = template_paragraph
+                    if len(value) > 1:
+                        _apply_para_props(para)
                 else:
-                    # Add new paragraph after the current one
-                    para = text_frame.add_paragraph()
+                    para = insert_paragraph_after(prev_para, text_frame)
+                    _apply_para_props(para)
 
                 # Clear and add text
                 for run in list(para.runs):
@@ -413,6 +515,12 @@ def replace_text_preserve_formatting(
                 # Apply template formatting
                 if template_run:
                     copy_run_formatting(template_run, run)
+
+                prev_para = para
+
+            # Remove any leftover empty template paragraphs (e.g. trailing blank
+            # line after the placeholder) that would create uneven spacing.
+            remove_empty_paragraphs(text_frame)
 
             return True
 
