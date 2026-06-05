@@ -13,7 +13,10 @@ from app.services.image_service import get_company_logo_path, get_topic_image_pa
 from app.services.table_service import (
     fill_table,
     extract_table_headers,
+    count_template_body_rows,
+    reset_table_to_template,
 )
+from app.services.slide_service import duplicate_slide_after
 import logging
 
 # metadata extraction and presentation generation logic will be use by an ai agent to create pptx files based on user input and a template file. The pptx template will have placeholders like {{title}}, {{summary}}, etc. which will be replaced by the ai agent with actual content before generating the final presentation.
@@ -581,6 +584,113 @@ def replace_text_preserve_formatting(
 
     return replaced
 
+def _determine_rows_per_slide(table, template_metadata, table_name):
+    """
+    Decides how many data rows fit on a single slide for a given table.
+
+    Resolution order:
+      1. Explicit `rows_per_slide` in the table's `field_instructions` entry,
+         keyed by the placeholder name (e.g. "table:programme"). This is the
+         convention for configuring pagination.
+      2. Inferred from the template table's own body-row count (the capacity
+         the designer drew). Falls back to 1.
+    """
+    metadata = template_metadata or {}
+
+    # 1. field_instructions configuration (keyed by placeholder name).
+    entry = metadata.get("field_instructions", {}).get(table_name, {})
+    if isinstance(entry, dict):
+        rps = entry.get("rows_per_slide")
+        if isinstance(rps, int) and rps > 0:
+            return rps
+
+    # 2. Infer from the template's pristine body-row count.
+    return max(1, count_template_body_rows(table))
+
+
+def _find_table_shape(slide, table_name):
+    """
+    Finds the table shape on a slide whose placeholder matches table_name.
+    """
+    pattern = r"\{\{(.*?)\}\}"
+    for shape in slide.shapes:
+        if not shape.has_table:
+            continue
+        alt_text = get_shape_alt_text(shape)
+        if not alt_text:
+            continue
+        for match in re.findall(pattern, alt_text):
+            if extract_placeholder_metadata(match)["name"] == table_name:
+                return shape
+    return None
+
+
+def _fill_tables_with_pagination(presentation, table_jobs, template_metadata):
+    """
+    Fills each collected table job, splitting rows across duplicated slides
+    when they exceed the per-slide capacity. Continuation slides are exact
+    copies of the source slide (shared content preserved), with their table
+    reset to the template shape and filled with the next chunk of rows.
+    """
+    for job in table_jobs:
+        data = job["table_data"]
+        rows_per_slide = job["rows_per_slide"]
+        source_slide = job["slide"]
+        table_name = job["table_name"]
+        column_headers = job["column_headers"]
+
+        # Split rows into per-slide chunks.
+        chunks = [
+            data[i:i + rows_per_slide]
+            for i in range(0, len(data), rows_per_slide)
+        ]
+        if not chunks:
+            continue
+
+        # Duplicate the (still pristine) source slide once per extra chunk,
+        # before filling the original, so every copy starts clean.
+        extra_slides = []
+        anchor = source_slide
+        for _ in chunks[1:]:
+            try:
+                duplicate = duplicate_slide_after(presentation, source_slide, anchor)
+                extra_slides.append(duplicate)
+                anchor = duplicate
+            except Exception as exc:
+                logging.error(f"Failed to duplicate slide for table '{table_name}': {exc}")
+                extra_slides.append(None)
+
+        # Fill the original slide's table with the first chunk. Reset first so
+        # the row count matches the chunk exactly (no leftover template rows).
+        reset_table_to_template(job["shape"].table)
+        fill_table(
+            job["shape"].table,
+            chunks[0],
+            column_headers=column_headers,
+            field_placeholder=table_name,
+            template_metadata=template_metadata,
+        )
+
+        # Fill each continuation slide with its chunk.
+        for duplicate, chunk in zip(extra_slides, chunks[1:]):
+            if duplicate is None:
+                continue
+            dup_shape = _find_table_shape(duplicate, table_name)
+            if dup_shape is None:
+                logging.warning(
+                    f"Continuation slide missing table '{table_name}'; skipping chunk."
+                )
+                continue
+            reset_table_to_template(dup_shape.table)
+            fill_table(
+                dup_shape.table,
+                chunk,
+                column_headers=column_headers,
+                field_placeholder=table_name,
+                template_metadata=template_metadata,
+            )
+
+
 def generate_presentation(
     template_path: str,
     output_path: str,
@@ -591,8 +701,14 @@ def generate_presentation(
     presentation = Presentation(template_path)
     pattern = r"\{\{(.*?)\}\}"
     shapes_to_remove = []
+    # Tables are filled in a separate pass AFTER shape cleanup so that
+    # continuation slides (when rows overflow one slide) are duplicated from a
+    # clean, fully-rendered slide. Each job captures everything needed to fill.
+    table_jobs = []
 
-    for slide in presentation.slides:
+    # Snapshot the slide list: the pagination pass adds slides, and we must not
+    # re-process those generated slides in this loop.
+    for slide in list(presentation.slides):
         for shape in slide.shapes:
             # 1. Check Alt Text for Image Placeholders
             alt_text = get_shape_alt_text(shape)
@@ -679,16 +795,20 @@ def generate_presentation(
 
                             table_data = replacements.get(table_name)
                             if table_data and isinstance(table_data, list):
-                                # Extract column headers from the table
-                                column_headers = extract_table_headers(shape.table)
-                                fill_table(
-                                    shape.table,
-                                    table_data,
-                                    column_headers=column_headers,
-                                    field_placeholder=table_name,
-                                    template_metadata=template_metadata
-                                )
-        
+                                # Defer the actual fill until after cleanup so
+                                # overflow rows can paginate onto duplicated
+                                # slides. Capture values from the pristine table.
+                                table_jobs.append({
+                                    "slide": slide,
+                                    "shape": shape,
+                                    "table_name": table_name,
+                                    "table_data": table_data,
+                                    "column_headers": extract_table_headers(shape.table),
+                                    "rows_per_slide": _determine_rows_per_slide(
+                                        shape.table, template_metadata, table_name
+                                    ),
+                                })
+
         # Apply custom map highlighting and pointer logic
         apply_map_logic(slide, replacements)
 
@@ -699,6 +819,9 @@ def generate_presentation(
             sp.getparent().remove(sp)
         except Exception as e:
             logging.error(f"Error removing shape: {e}")
+
+    # Fill tables, paginating onto duplicated slides when rows overflow.
+    _fill_tables_with_pagination(presentation, table_jobs, template_metadata)
 
     presentation.save(output_path)
     cleanup_temp_images()

@@ -125,6 +125,7 @@
     "table:programme": {
       "label": "Program Schedule",
       "description": "Table with activities for each time slot across event days",
+      "rows_per_slide": 1,
       "instructions": "For each part in the cell: 1) context - for each context item provided, generate ONE elaborated paragraph (1-2 sentences) based on that context item's topic. 2) team_building (optional) - if provided, generate a paragraph about the team building activity including: action (what it is), objective (what it aims to achieve), experience (immersive/competitive nature), and Les ++ (why it's beneficial for the team + key bonuses). 3) agency_offer (optional) - a single paragraph describing all benefits/offerings together.",
       "formatting_conventions": [
         {

@@ -129,6 +129,39 @@ def fill_table(
             )
 
 
+def count_template_body_rows(table) -> int:
+    """
+    Counts the body rows in a pristine template table (all rows minus the
+    header row at index 0). This represents how many data rows the template
+    designer laid out to fit on the slide.
+    """
+    return max(0, len(table.rows) - 1)
+
+
+def reset_table_to_template(table) -> None:
+    """
+    Resets a table back to its pristine template shape: header row (index 0)
+    plus a single empty template row (index 1). Any additional body rows are
+    removed and the template row's text is cleared.
+
+    Used on duplicated continuation slides so each can be filled with its own
+    chunk of rows while preserving the template's styling.
+    """
+    tbl = table._tbl
+    rows = tbl.tr_lst
+
+    # Keep header (0) and the first template row (1); drop the rest.
+    for row_xml in rows[2:]:
+        tbl.remove(row_xml)
+
+    # Clear text in the remaining template row's cells.
+    if len(tbl.tr_lst) >= 2:
+        template_row = tbl.tr_lst[1]
+        for tc in template_row.tc_lst:
+            for t in tc.xpath('.//a:t'):
+                t.text = ""
+
+
 def add_row_to_table(table):
     """
     Manually adds a row to a table by manipulating the underlying XML.
