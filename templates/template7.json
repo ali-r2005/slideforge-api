@@ -122,7 +122,8 @@
   },
 
   "field_instructions": {
-    "table:programme": {
+    "event_type":"2 words focus on the type of event (e.g., corporate retreat, team-building workshop, annual conference)",
+    "table:program_schedule": {
       "label": "Program Schedule",
       "description": "Table with activities for each time slot across event days",
       "rows_per_slide": 1,
