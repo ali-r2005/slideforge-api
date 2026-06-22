@@ -12,7 +12,7 @@
         "required": true,
         "label": "Language",
         "description": "Select the language for the presentation content",
-        "values": ["english", "french"],
+        "values": ["english", "french", "spanish", "arabic"],
         "default": "english"
       },
       {

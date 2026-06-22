@@ -43,8 +43,9 @@ def extract_ppt_metadata(template_path: str):
             # logging.info(f"Shape has text: {hasattr(shape, 'text')}")
 
             # 1. Check text for placeholders
-            if hasattr(shape, "text") and shape.text.strip():
-                matches = re.findall(pattern, shape.text.strip())
+            shape_text = getattr(shape, "text", None)
+            if shape_text and shape_text.strip():
+                matches = re.findall(pattern, shape_text.strip())
                 for match in matches:
                     metadata = extract_placeholder_metadata(match)
                     placeholder_name = metadata["name"]
@@ -91,7 +92,10 @@ def extract_ppt_metadata(template_path: str):
                         placeholder_type = infer_placeholder_type(placeholder_name)
                         if placeholder_type == "table":
                             # Extract header names from the first row
-                            table = shape.table
+                            table = getattr(shape, "table", None)
+                            if not table:
+                                continue
+                                
                             column_headers = extract_table_headers(table)
 
                             slide_info["placeholders"].append({
@@ -745,12 +749,13 @@ def generate_presentation(
                                 shapes_to_remove.append((slide, shape))
 
             # 2. Check Text for Text Placeholders
-            if hasattr(shape, "text"):
+            shape_text = getattr(shape, "text", None)
+            if shape_text:
                 for key, value in replacements.items():
                     # Look for placeholder with or without metadata
                     # e.g., {{key}} or {{key:paragraphs=2}}
                     placeholder_pattern = r"\{\{" + re.escape(key) + r"(?::paragraphs=\d+)?\}\}"
-                    match = re.search(placeholder_pattern, shape.text)
+                    match = re.search(placeholder_pattern, shape_text)
 
                     if match:
                         actual_placeholder = match.group(0)
@@ -798,14 +803,17 @@ def generate_presentation(
                                 # Defer the actual fill until after cleanup so
                                 # overflow rows can paginate onto duplicated
                                 # slides. Capture values from the pristine table.
+                                table = getattr(shape, "table", None)
+                                if not table:
+                                    continue
                                 table_jobs.append({
                                     "slide": slide,
                                     "shape": shape,
                                     "table_name": table_name,
                                     "table_data": table_data,
-                                    "column_headers": extract_table_headers(shape.table),
+                                    "column_headers": extract_table_headers(table),
                                     "rows_per_slide": _determine_rows_per_slide(
-                                        shape.table, template_metadata, table_name
+                                        table, template_metadata, table_name
                                     ),
                                 })
 
@@ -943,4 +951,3 @@ def generate_template_thumbnail(template_path: str, output_dir: str = "public/th
             return str(thumb_path)
 
     return None
-
